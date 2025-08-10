@@ -1,0 +1,136 @@
+import { Euler, Quaternion } from "three";
+import { BetterObject3D } from "./BetterObject3D";
+import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp } from "./ShipParts";
+import { degToRad, Vector3 } from "../helpers";
+import { shipDesign } from "./shipDesigns";
+import { world } from "../Globals";
+import { JointData } from "@dimforge/rapier3d-compat";
+import { shipHandleIds } from "../PhysicsHooks";
+
+export class Ship extends BetterObject3D {
+  parts: ShipPartInstance[] = [];
+  constructor() {
+    super();
+
+    const partsOnShip = shipDesignToPartsOnShip(shipDesign);
+    const partsHandleIds: Set<number> = new Set();
+    for (const part of partsOnShip) {
+      const { part: Part, position, rotation } = part;
+      const instance = new Part(new Quaternion().setFromEuler(rotation));
+      partsHandleIds.add(instance.rigidBody!.handle);
+      instance.rigidBody!.setTranslation(position, true);
+      this.parts.push(instance);
+      this.add(instance);
+    }
+    shipHandleIds.push(partsHandleIds);
+    for (const part of this.parts) {
+      for (const otherPart of this.parts) {
+        if (part === otherPart) continue;
+        const nextVector = nextToEachOther(part, otherPart);
+        if (nextVector && nextVector.z === 1) {
+          world.createImpulseJoint(
+            JointData.fixed({ x: 0, y: 0, z: -0.5 }, new Quaternion(), { x: 0, y: 0, z: 0.5 }, new Quaternion()),
+            part.rigidBody!,
+            otherPart.rigidBody!,
+            true
+          );
+        } else if (nextVector && nextVector.x === 1) {
+          world.createImpulseJoint(
+            JointData.fixed({ x: -0.5, y: 0, z: 0 }, new Quaternion(), { x: 0.5, y: 0, z: 0 }, new Quaternion()),
+            part.rigidBody!,
+            otherPart.rigidBody!,
+            true
+          );
+        } else if (nextVector && nextVector.y === 1) {
+          world.createImpulseJoint(
+            JointData.fixed({ x: 0, y: -0.5, z: 0 }, new Quaternion(), { x: 0, y: 0.5, z: 0 }, new Quaternion()),
+            part.rigidBody!,
+            otherPart.rigidBody!,
+            true
+          );
+        }
+      }
+    }
+  }
+}
+
+type PartOnShip = {
+  part: ShipPartConstructor;
+  position: Vector3;
+  rotation: Euler;
+};
+
+const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
+  const partsOnShip: PartOnShip[] = [];
+
+  const numLayers = design.length;
+  if (numLayers === 0) return partsOnShip;
+
+  const rowsPerLayer = design[0].length;
+  const zCenterOffset = (numLayers - 1) / 2;
+  const yCenterOffset = (rowsPerLayer - 1) / 2;
+
+  for (let layerIndex = 0; layerIndex < numLayers; layerIndex++) {
+    const layerRows = design[layerIndex];
+    for (let rowIndex = 0; rowIndex < layerRows.length; rowIndex++) {
+      const row = layerRows[rowIndex];
+      const rowLength = row.length;
+      const xCenterOffset = (rowLength - 1) / 2;
+
+      for (let colIndex = 0; colIndex < rowLength; colIndex++) {
+        const char = row[colIndex];
+        if (char === " ") continue;
+        const entry = legend[char as keyof typeof legend];
+        if (!entry) continue;
+
+        const position = new Vector3(colIndex - xCenterOffset, rowIndex - yCenterOffset, layerIndex - zCenterOffset);
+
+        partsOnShip.push({ part: entry.part, position, rotation: entry.rotation });
+      }
+    }
+  }
+
+  return partsOnShip;
+};
+const legend = {
+  "■": {
+    part: WoodenBox,
+    rotation: new Euler(0, 0, 0),
+  },
+  "◢": {
+    part: WoodenRamp,
+    rotation: new Euler(0, degToRad(-90), degToRad(-90)),
+  },
+  "◣": {
+    part: WoodenRamp,
+    rotation: new Euler(0, degToRad(90), degToRad(-90)),
+  },
+  "◥": {
+    part: WoodenRamp,
+    rotation: new Euler(0, degToRad(-90), degToRad(90)),
+  },
+  "◤": {
+    part: WoodenRamp,
+    rotation: new Euler(0, degToRad(90), degToRad(90)),
+  },
+  "⬡": {
+    part: Helm,
+    rotation: new Euler(0, 0, 0),
+  },
+  "▒": {
+    part: LeadBox,
+    rotation: new Euler(0, 0, 0),
+  },
+};
+
+// next to each other means equal any two of X, Y or Z and the third one is different exactly by 1
+const nextToEachOther = (part1: ShipPartInstance, part2: ShipPartInstance) => {
+  const pos1 = part1.rigidBody!.translation();
+  const pos2 = part2.rigidBody!.translation();
+  return (
+    ((pos1.x === pos2.x && pos1.y === pos2.y && pos1.z - pos2.z === 1) ||
+      (pos1.x === pos2.x && pos1.z === pos2.z && pos1.y - pos2.y === 1) ||
+      (pos1.y === pos2.y && pos1.z === pos2.z && pos1.x - pos2.x === 1)) &&
+    new Vector3(pos1).sub(pos2)
+  );
+};
