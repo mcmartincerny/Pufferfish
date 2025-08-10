@@ -10,6 +10,8 @@ import {
   CustomToneMapping,
   DepthTexture,
   DirectionalLight,
+  DirectionalLightHelper,
+  Fog,
   HemisphereLight,
   LinearToneMapping,
   Mesh,
@@ -36,7 +38,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { resetDebugRigidBodies } from "./helpers";
+import { degToRad, resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -44,10 +46,12 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import RAPIER, { EventQueue, JointData } from "@dimforge/rapier3d-compat";
 import { CameraSwitcher, CameraType } from "./cameras/CameraSwitcher.ts";
 import { RapierDebugRenderer } from "./Debug.ts";
+import { Sky } from "three/addons/objects/Sky.js";
 import { Water } from "./objects/Water.ts";
 import { BuoyantObject } from "./objects/BuoyantObject.ts";
 import { Ship } from "./objects/Ship.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
+import { CustomSky } from "./objects/Sky.ts";
 
 await RAPIER.init();
 
@@ -135,6 +139,7 @@ const init = () => {
       renderer.toneMapping = toneMapping;
       console.log("Tone mapping set to", toneMapping);
     });
+  gui.add(renderer, "toneMappingExposure").min(0.0).max(1.0).step(0.01).name("Tone mapping exposure");
   renderer.outputColorSpace = "srgb" as ColorSpace;
 
   const rapierDebugRenderer = new RapierDebugRenderer(scene, world);
@@ -154,6 +159,27 @@ const init = () => {
 
   const ambientLight = new AmbientLight(0xffffff, 0.1);
   scene.add(ambientLight);
+
+  // const light = new PointLight(0xffffff, 30, 0, 1.4);
+  // light.position.set(5, -3, 5);
+  // scene.add(light);
+
+  const directionalLight = new DirectionalLight(0xffffff, 10);
+  directionalLight.position.set(10, 5, 20);
+  directionalLight.lookAt(0, 0, 0);
+  scene.add(directionalLight);
+  const directionalLightHelper = new DirectionalLightHelper(directionalLight, 10);
+  scene.add(directionalLightHelper);
+
+  const hemisphereLight = new HemisphereLight(0xffffff, 0x444444, 0.1);
+  scene.add(hemisphereLight);
+
+  const sky = new CustomSky();
+  scene.add(sky);
+  sky.init();
+
+  // scene.fog = new Fog(0xcccccc, 20, 80);
+
   // const geometry = new SphereGeometry(0.62, 100, 100);
   // const material = new MeshPhongMaterial({ color: 0xaa7788 });
   // const sphere = new Mesh(geometry, material);
@@ -226,18 +252,6 @@ const init = () => {
   const water = new Water();
   scene.add(water);
   water.init();
-
-  const light = new PointLight(0xffffff, 30, 0, 1.4);
-  light.position.set(5, -3, 5);
-  scene.add(light);
-
-  const directionalLight = new DirectionalLight(0xffffff, 0.05);
-  directionalLight.position.set(0, 0, 20);
-  directionalLight.lookAt(-10, -10, 0);
-  scene.add(directionalLight);
-
-  const hemisphereLight = new HemisphereLight(0xffffff, 0x444444, 0.1);
-  scene.add(hemisphereLight);
 
   gui
     .add({}, "dummy", CameraType)
