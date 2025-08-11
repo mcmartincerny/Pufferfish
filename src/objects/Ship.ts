@@ -1,6 +1,6 @@
 import { Euler, Quaternion } from "three";
 import { BetterObject3D } from "./BetterObject3D";
-import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp } from "./ShipParts";
+import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller } from "./ShipParts";
 import { degToRad, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
 import { world } from "../Globals";
@@ -89,7 +89,7 @@ const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
       }
     }
   }
-
+  console.log(JSON.stringify(partsOnShip, null, 2));
   return partsOnShip;
 };
 const legend = {
@@ -119,6 +119,10 @@ const legend = {
   },
   "▒": {
     part: LeadBox,
+    rotation: new Euler(0, 0, 0),
+  },
+  T: {
+    part: Propeller,
     rotation: new Euler(0, 0, 0),
   },
 };

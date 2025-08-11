@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { world } from "../Globals";
-import { degToRad, Vector3 } from "../helpers";
+import { clamp, degToRad, Vector3 } from "../helpers";
 import { BetterObject3D } from "../objects/BetterObject3D";
 import { Euler, MathUtils, PerspectiveCamera, Quaternion } from "three";
 
@@ -10,7 +10,7 @@ export class ThirdPersonCamera extends BetterObject3D {
   canvas: HTMLCanvasElement;
   maxZBellowTarget = 0.8;
   velocityMultiplier = 0.3;
-  moveKp = 0.0015; // was 0.015
+  moveKp = 0.015;
   linearDamping = 30;
   // Camera rotation
   mouseSensitivity = 0.004;
@@ -87,7 +87,7 @@ export class ThirdPersonCamera extends BetterObject3D {
     }
     const cameraPosition = new Vector3(this.rigidBody!.translation());
     const error = idealCameraPosition.sub(cameraPosition);
-    const force = error.multiplyScalar(this.moveKp * error.length());
+    const force = error.multiplyScalar(this.moveKp * clamp(error.length(), 0, 20));
     this.rigidBody!.applyImpulse(force, true);
   }
 
