@@ -1,6 +1,7 @@
 import RAPIER, { QueryFilterFlags, Ray } from "@dimforge/rapier3d-compat";
 import { world } from "./Globals";
-import { Vector3 as Vector3Class, Vector3Like } from "three";
+import { Quaternion as QuaternionClass, QuaternionLike, Vector3 as Vector3Class, Vector3Like } from "three";
+// import { Quaternion as QuaternionClass } from "three";
 
 export function clamp(num: number, min: number, max: number) {
   return Math.min(Math.max(num, min), max);
@@ -33,6 +34,14 @@ export const log = throttle((...values: any[]) => {
   console.log(...values);
 }, 500);
 
+export const logMax = (name: string, value: number) => {
+  if (maxValues[name] == null || value > maxValues[name]) {
+    maxValues[name] = value;
+    console.log(`${name} maxed out at ${value}`);
+  }
+};
+const maxValues: Record<string, number> = {};
+
 export class Vector3 extends Vector3Class {
   constructor(xOrVector: Vector3Like);
   constructor(xOrVector?: number, y?: number, z?: number);
@@ -45,6 +54,16 @@ export class Vector3 extends Vector3Class {
   }
 }
 
+export class Quaternion extends QuaternionClass {
+  constructor(xOrQuaternion?: QuaternionLike);
+  constructor(xOrQuaternion?: QuaternionLike | number | undefined, y?: number, z?: number, w?: number) {
+    if (typeof xOrQuaternion === "object") {
+      super(xOrQuaternion.x, xOrQuaternion.y, xOrQuaternion.z, xOrQuaternion.w);
+    } else {
+      super(xOrQuaternion, y, z, w);
+    }
+  }
+}
 export const log50 = (...values: any[]) => {
   if (Math.random() < 0.02) {
     console.log(...values);
@@ -89,4 +108,12 @@ export const castRay = (position: Vector3Like, direction: Vector3Like, maxDistan
 
 export const degToRad = (degrees: number) => {
   return degrees * (Math.PI / 180);
+};
+
+export const average = (array: number[]) => {
+  let total = 0;
+  for (const value of array) {
+    total += value;
+  }
+  return total / array.length;
 };

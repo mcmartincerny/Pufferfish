@@ -1,6 +1,6 @@
-import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Quaternion } from "three";
+import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial } from "three";
 import { BuoyantObject } from "./BuoyantObject";
-import { clamp, Vector3 } from "../helpers";
+import { clamp, degToRad, Quaternion, Vector3 } from "../helpers";
 import { ActiveHooks, ColliderDesc } from "@dimforge/rapier3d-compat";
 import { RigidBodyDesc } from "@dimforge/rapier3d-compat";
 import { world } from "../Globals";
@@ -74,8 +74,9 @@ export class LeadBox extends WoodenBox {
 
 export class ThrustingPart extends ShipPart {
   thrustPositionRelativeToPart = new Vector3(0, 0, 0);
-  thrustRotation = new Euler();
+  thrustRotation = new Quaternion().setFromEuler(new Euler(0, 0, degToRad(0)));
   thrustForce = 0;
+  needsWater = true;
 
   constructor({ size = 1 }: { size?: number }) {
     super({ size: size });
@@ -89,19 +90,29 @@ export class ThrustingPart extends ShipPart {
       throw new Error("ThrustingPart has no rigid body! It should not be instantiated directly, it be extended and rigid body should be set in the subclass");
     const totalThrustForce = this.thrustForce * force;
     const point = new Vector3(this.rigidBody.translation()).add(this.thrustPositionRelativeToPart);
-    const impulse = new Vector3(this.thrustRotation).multiplyScalar(totalThrustForce);
+    let impulseLength = totalThrustForce;
+    if (this.needsWater && this.percentageSubmerged < 1) {
+      impulseLength = totalThrustForce * this.percentageSubmerged;
+    }
+    const partRotation = new Quaternion(this.rigidBody.rotation());
+    const partRotationAndThrustRotation = partRotation.multiply(this.thrustRotation);
+    const localForward = new Vector3(0, -1, 0);
+    const worldDirection = new Vector3(localForward).applyQuaternion(partRotationAndThrustRotation).normalize();
+    const impulse = worldDirection.multiplyScalar(impulseLength);
     this.rigidBody.applyImpulseAtPoint(impulse, point, true);
   }
 }
 
 export class Propeller extends ThrustingPart {
+  thrustForce = 3;
+
   constructor() {
     super({ size: 0.5 });
-    const geometry = new CylinderGeometry(0.2, 0.2, 0.5, 5, 5);
+    const geometry = new CylinderGeometry(0.2, 0.2, 1, 10, 1);
     const material = new MeshPhongMaterial({ color: 0x999999 });
     const propeller = new Mesh(geometry, material);
     const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(0, 0, 0));
-    const collider = world.createCollider(ColliderDesc.cylinder(0.2, 0.5).setTranslation(0.0, 0.0, 0.0), rigidBody);
+    const collider = world.createCollider(ColliderDesc.cylinder(0.5, 0.2).setTranslation(0.0, 0.0, 0.0), rigidBody);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
     collider.setFriction(0.5);

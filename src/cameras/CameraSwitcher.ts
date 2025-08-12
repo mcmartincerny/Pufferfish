@@ -36,8 +36,18 @@ export class CameraSwitcher {
     this.cameraTarget = cameraTarget;
     this.camera.up.set(0, 0, 1);
     this.camera.position.z = 4;
-    this.camera.position.y = -5;
+    this.camera.position.y = -10;
+    this.camera.position.x = 0;
     this.switchCamera(this.type);
+  }
+
+  setTarget(target: BetterObject3D) {
+    this.cameraTarget = target;
+    if (this.thirdPersonCamera) {
+      this.thirdPersonCamera.target = target;
+    } else if (this.followingCamera) {
+      this.followingCamera.target = target;
+    }
   }
 
   switchCamera(type: CameraType) {

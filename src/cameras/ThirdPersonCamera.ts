@@ -2,12 +2,13 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { world } from "../Globals";
 import { clamp, degToRad, Vector3 } from "../helpers";
 import { BetterObject3D } from "../objects/BetterObject3D";
-import { Euler, MathUtils, PerspectiveCamera, Quaternion } from "three";
+import { MathUtils, PerspectiveCamera } from "three";
 
 export class ThirdPersonCamera extends BetterObject3D {
   camera: PerspectiveCamera;
-  target: BetterObject3D;
+  _target!: BetterObject3D;
   canvas: HTMLCanvasElement;
+  rigidBody: RAPIER.RigidBody;
   maxZBellowTarget = 0.8;
   velocityMultiplier = 0.3;
   moveKp = 0.015;
@@ -32,7 +33,6 @@ export class ThirdPersonCamera extends BetterObject3D {
 
   constructor(camera: PerspectiveCamera, target: BetterObject3D, canvas: HTMLCanvasElement) {
     super();
-    this.target = target;
     this.camera = camera;
     this.canvas = canvas;
     this.rigidBody = world.createRigidBody(
@@ -41,6 +41,18 @@ export class ThirdPersonCamera extends BetterObject3D {
     this.rigidBody.setGravityScale(0, true);
     this.rigidBody.setLinearDamping(this.linearDamping);
     this.rigidBody.setAdditionalMass(0.01, true);
+    this.target = target;
+  }
+
+  get target() {
+    return this._target;
+  }
+
+  set target(newTarget: BetterObject3D) {
+    this._target = newTarget;
+    if (newTarget) {
+      this.rigidBody.setTranslation(newTarget.position, true);
+    }
   }
 
   setActive(active: boolean) {
@@ -81,18 +93,21 @@ export class ThirdPersonCamera extends BetterObject3D {
     if (idealCameraPosition.z < this.getTargetPosition().z - this.maxZBellowTarget) {
       idealCameraPosition.setZ(this.getTargetPosition().z - this.maxZBellowTarget);
     }
-    if (isNaN(this.rigidBody!.translation().x)) {
+    if (isNaN(this.rigidBody.translation().x)) {
       console.warn("Rigid body translation is NaN, setting to ideal camera position");
       this.rigidBody!.setTranslation(idealCameraPosition, true);
     }
-    const cameraPosition = new Vector3(this.rigidBody!.translation());
+    const cameraPosition = new Vector3(this.rigidBody.translation());
     const error = idealCameraPosition.sub(cameraPosition);
     const force = error.multiplyScalar(this.moveKp * clamp(error.length(), 0, 20));
-    this.rigidBody!.applyImpulse(force, true);
+    if (force.length() > 0.5) {
+      force.setLength(0.5);
+    }
+    this.rigidBody.applyImpulse(force, true);
   }
 
   updatePhysics(): void {
-    this.camera.position.copy(this.rigidBody!.translation());
+    this.camera.position.copy(this.rigidBody.translation());
   }
 
   turnCameraBasedOnMouse(): void {

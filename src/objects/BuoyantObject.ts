@@ -6,6 +6,7 @@ const BUOYANCY_FACTOR = 0.2;
 const HORIZONTAL_DRAG_FACTOR = 0.01; // Reduced for ships to move fast horizontally
 const VERTICAL_DRAG_FACTOR = 0.04; // Higher to reduce bouncing
 const OBJECT_SIZE = 1;
+const ANGULAR_DAMPING = 0.001;
 
 /**
  * BuoyantObject is a class that represents an object that is buoyant.
@@ -13,6 +14,7 @@ const OBJECT_SIZE = 1;
  */
 export class BuoyantObject extends BetterObject3D {
   size: number;
+  percentageSubmerged = 0;
   constructor({ size = OBJECT_SIZE }: { size?: number } = {}) {
     super();
     this.size = size;
@@ -22,11 +24,13 @@ export class BuoyantObject extends BetterObject3D {
     const numColliders = this.rigidBody?.numColliders();
     if (!this.rigidBody || !numColliders || numColliders === 0) return;
 
+    const percentageSubmergedPerCollider = [];
     for (let i = 0; i < numColliders; i++) {
       const collider = this.rigidBody.collider(i);
       const z = collider.translation().z;
       const topZ = z + this.size / 2;
       const percentageSubmerged = clamp((WATER_LINE_Z - (topZ - this.size)) / this.size, 0, 1);
+      percentageSubmergedPerCollider.push(percentageSubmerged);
 
       if (percentageSubmerged > 0) {
         // Buoyancy
@@ -42,14 +46,19 @@ export class BuoyantObject extends BetterObject3D {
         const horizontalVelocity = new Vector3(velocity.x, velocity.y, 0);
         const verticalVelocity = new Vector3(0, 0, velocity.z);
 
-        const horizontalDragForce = horizontalVelocity.multiplyScalar(-HORIZONTAL_DRAG_FACTOR * percentageSubmerged);
-        const verticalDragForce = verticalVelocity.multiplyScalar(-VERTICAL_DRAG_FACTOR * percentageSubmerged);
+        const horizontalDragForce = horizontalVelocity.multiplyScalar(-HORIZONTAL_DRAG_FACTOR * volume * percentageSubmerged);
+        const verticalDragForce = verticalVelocity.multiplyScalar(-VERTICAL_DRAG_FACTOR * volume * percentageSubmerged);
 
         const totalDragForce = horizontalDragForce.add(verticalDragForce);
 
         const allForces = new Vector3(0, 0, 0).add(buoyantForce).add(totalDragForce);
         this.rigidBody.applyImpulseAtPoint(allForces, collider.translation(), true);
+
+        // Angular damping
+        const angularDampingForce = new Vector3(this.rigidBody.angvel()).multiplyScalar(-ANGULAR_DAMPING * volume * percentageSubmerged);
+        this.rigidBody.applyTorqueImpulse(angularDampingForce, true);
       }
     }
+    this.percentageSubmerged = percentageSubmergedPerCollider.reduce((a, b) => a + b, 0) / percentageSubmergedPerCollider.length;
   }
 }

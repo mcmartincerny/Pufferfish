@@ -1,6 +1,6 @@
 import { Euler, Quaternion } from "three";
 import { BetterObject3D } from "./BetterObject3D";
-import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller } from "./ShipParts";
+import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart } from "./ShipParts";
 import { degToRad, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
 import { world } from "../Globals";
@@ -9,9 +9,11 @@ import { shipHandleIds } from "../PhysicsHooks";
 
 export class Ship extends BetterObject3D {
   parts: ShipPartInstance[] = [];
+  helm!: Helm;
+  thrustParts: ThrustingPart[] = [];
   constructor() {
     super();
-
+    let hasHelm = false;
     const partsOnShip = shipDesignToPartsOnShip(shipDesign);
     const partsHandleIds: Set<number> = new Set();
     for (const part of partsOnShip) {
@@ -20,7 +22,17 @@ export class Ship extends BetterObject3D {
       partsHandleIds.add(instance.rigidBody!.handle);
       instance.rigidBody!.setTranslation(position, true);
       this.parts.push(instance);
+      if (instance instanceof ThrustingPart) {
+        this.thrustParts.push(instance);
+      }
+      if (instance instanceof Helm) {
+        this.helm = instance;
+        hasHelm = true;
+      }
       this.add(instance);
+    }
+    if (!hasHelm) {
+      throw new Error("Ship has no helm");
     }
     shipHandleIds.push(partsHandleIds);
     for (const part of this.parts) {
@@ -58,6 +70,7 @@ type PartOnShip = {
   part: ShipPartConstructor;
   position: Vector3;
   rotation: Euler;
+  partName?: string;
 };
 
 const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
@@ -85,11 +98,11 @@ const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
 
         const position = new Vector3(colIndex - xCenterOffset, rowIndex - yCenterOffset, layerIndex - zCenterOffset);
 
-        partsOnShip.push({ part: entry.part, position, rotation: entry.rotation });
+        partsOnShip.push({ part: entry.part, position, rotation: entry.rotation, partName: entry.part.name });
       }
     }
   }
-  console.log(JSON.stringify(partsOnShip, null, 2));
+  // console.log(JSON.stringify(partsOnShip, null, 2));
   return partsOnShip;
 };
 const legend = {

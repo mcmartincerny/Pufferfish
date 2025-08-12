@@ -52,6 +52,7 @@ import { BuoyantObject } from "./objects/BuoyantObject.ts";
 import { Ship } from "./objects/Ship.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
+import { ShipPlayer } from "./objects/ShipPlayer.ts";
 
 await RAPIER.init();
 
@@ -193,27 +194,29 @@ const init = () => {
   // scene.add(sphereObject);
   // sphereObject.init();
 
-  // const cubeGeometry = new BoxGeometry(1, 1, 1);
-  // const cubeMaterial = new MeshStandardMaterial({ color: 0x44aa88 });
-  // const cube = new Mesh(cubeGeometry, cubeMaterial);
-  // const cubeRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(2.0, 0.0, 5.0));
-  // const cubeCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), cubeRigidBody);
-  // cubeCollider.setRestitution(0.8);
-  // const cubeObject = new BuoyantObject();
-  // cubeObject.add(cube);
-  // cubeObject.rigidBody = cubeRigidBody;
-  // scene.add(cubeObject);
-  // cubeObject.init();
+  const cubeGeometry = new BoxGeometry(2, 2, 2);
+  const cubeMaterial = new MeshStandardMaterial({ color: 0x44aa88 });
+  const cube = new Mesh(cubeGeometry, cubeMaterial);
+  const cubeRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(6.0, 0.0, 5.0));
+  const cubeCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(1, 1, 1).setTranslation(0.0, 0.0, 0.0), cubeRigidBody);
+  cubeCollider.setRestitution(0.8);
+  const cubeObject = new BuoyantObject();
+  cubeObject.add(cube);
+  cubeObject.rigidBody = cubeRigidBody;
+  scene.add(cubeObject);
+  cubeObject.init();
 
-  // const cubeGray = new MeshStandardMaterial({ color: 0xcccccc });
-  // const cube2 = new Mesh(cubeGeometry, cubeGray);
-  // const cube2RigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0.0, -1.0, 5.0));
-  // const cube2Collider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), cube2RigidBody);
-  // cube2Collider.setRestitution(0.8);
-  // const cube2Object = new BuoyantObject();
-  // cube2Object.add(cube2);
-  // cube2Object.rigidBody = cube2RigidBody;
-  // scene.add(cube2Object);
+  const cubeGrayGeometry = new BoxGeometry(1, 1, 1);
+  const cubeGray = new MeshStandardMaterial({ color: 0xcccccc });
+  const cube2 = new Mesh(cubeGrayGeometry, cubeGray);
+  const cube2RigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-4.0, -1.0, 5.0));
+  const cube2Collider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), cube2RigidBody);
+  cube2Collider.setRestitution(0.8);
+  const cube2Object = new BuoyantObject();
+  cube2Object.add(cube2);
+  cube2Object.rigidBody = cube2RigidBody;
+  scene.add(cube2Object);
+  cube2Object.init();
 
   // const cube3 = new Mesh(cubeGeometry, cubeGray);
   // const cube3RigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-1.0, -1.0, 5.0));
@@ -231,10 +234,10 @@ const init = () => {
   //   true
   // );
 
-  const ship = new Ship();
+  const ship = new ShipPlayer();
   scene.add(ship);
   ship.init();
-  cameraSwitcher.cameraTarget = ship;
+  cameraSwitcher.setTarget(ship);
 
   const groundGeometry = new PlaneGeometry(30, 30, 599, 599);
   const groundMaterial = new MeshPhongMaterial({ color: 0x634214 });
