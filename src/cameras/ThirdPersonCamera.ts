@@ -3,6 +3,7 @@ import { world } from "../Globals";
 import { clamp, degToRad, Vector3 } from "../helpers";
 import { BetterObject3D } from "../objects/BetterObject3D";
 import { MathUtils, PerspectiveCamera } from "three";
+import { Ship } from "../objects/Ship";
 
 export class ThirdPersonCamera extends BetterObject3D {
   camera: PerspectiveCamera;
@@ -51,7 +52,8 @@ export class ThirdPersonCamera extends BetterObject3D {
   set target(newTarget: BetterObject3D) {
     this._target = newTarget;
     if (newTarget) {
-      this.rigidBody.setTranslation(newTarget.position, true);
+      const position = newTarget.rigidBody?.translation() ?? newTarget.position;
+      this.rigidBody.setTranslation(position, true);
     }
   }
 
@@ -131,12 +133,18 @@ export class ThirdPersonCamera extends BetterObject3D {
     this.mouseMoveSinceLastFrameY = 0;
   }
 
-  getTargetPosition(): Vector3 {
-    if (this.target.rigidBody) {
-      return new Vector3(this.target.rigidBody.translation());
+  getSomeTargetPosition(target: BetterObject3D): Vector3 {
+    if (target.rigidBody) {
+      return new Vector3(target.rigidBody.translation());
+    } else if (target instanceof Ship) {
+      return new Vector3(target.helm.rigidBody!.translation());
     } else {
-      return new Vector3(this.target.position);
+      return new Vector3(target.position);
     }
+  }
+
+  getTargetPosition(): Vector3 {
+    return this.getSomeTargetPosition(this.target);
   }
 
   getTargetVelocity(): Vector3 {

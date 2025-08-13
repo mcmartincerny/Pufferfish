@@ -1,7 +1,7 @@
-import { Euler, Quaternion } from "three";
+import { Euler } from "three";
 import { BetterObject3D } from "./BetterObject3D";
-import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart } from "./ShipParts";
-import { degToRad, Vector3 } from "../helpers";
+import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart, RudderPart, SmallRudder } from "./ShipParts";
+import { degToRad, Quaternion, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
 import { world } from "../Globals";
 import { JointData } from "@dimforge/rapier3d-compat";
@@ -11,6 +11,7 @@ export class Ship extends BetterObject3D {
   parts: ShipPartInstance[] = [];
   helm!: Helm;
   thrustParts: ThrustingPart[] = [];
+  rudderParts: RudderPart[] = [];
   constructor() {
     super();
     let hasHelm = false;
@@ -18,12 +19,17 @@ export class Ship extends BetterObject3D {
     const partsHandleIds: Set<number> = new Set();
     for (const part of partsOnShip) {
       const { part: Part, position, rotation } = part;
-      const instance = new Part(new Quaternion().setFromEuler(rotation));
+      const rotationQuaternion = new Quaternion().setFromEuler(rotation);
+      const instance = new Part({ rotation: rotationQuaternion });
       partsHandleIds.add(instance.rigidBody!.handle);
       instance.rigidBody!.setTranslation(position, true);
+      // instance.rigidBody!.setRotation(rotationQuaternion, true);
       this.parts.push(instance);
       if (instance instanceof ThrustingPart) {
         this.thrustParts.push(instance);
+      }
+      if (instance instanceof RudderPart) {
+        this.rudderParts.push(instance);
       }
       if (instance instanceof Helm) {
         this.helm = instance;
@@ -54,17 +60,52 @@ export class Ship extends BetterObject3D {
             true
           );
         } else if (nextVector && nextVector.y === 1) {
-          world.createImpulseJoint(
-            JointData.fixed({ x: 0, y: -0.5, z: 0 }, new Quaternion(), { x: 0, y: 0.5, z: 0 }, new Quaternion()),
-            part.rigidBody!,
-            otherPart.rigidBody!,
-            true
-          );
+          if (part instanceof RudderPart || otherPart instanceof RudderPart) {
+            console.log("part", part.size, "otherPart", otherPart.size);
+            // createFixedJoint(part, otherPart);
+            // world.createImpulseJoint(
+            //   JointData.fixed(
+            //     { x: 0, y: -0.5, z: 0 },
+            //     new Quaternion().setFromEuler(new Euler(0, degToRad(-90), 0)),
+            //     { x: 0, y: 0.5, z: 0 },
+            //     new Quaternion().setFromEuler(new Euler(0, 0, 0))
+            //   ),
+            //   part.rigidBody!,
+            //   otherPart.rigidBody!,
+            //   true
+            // );
+          } else {
+            world.createImpulseJoint(
+              JointData.fixed({ x: 0, y: -0.5, z: 0 }, new Quaternion(), { x: 0, y: 0.5, z: 0 }, new Quaternion()),
+              part.rigidBody!,
+              otherPart.rigidBody!,
+              true
+            );
+          }
         }
       }
     }
   }
 }
+
+/**
+ * Create a fixed joint between two parts no matter where they are and what their rotation is
+ */
+const createFixedJoint = (part1: ShipPartInstance, part2: ShipPartInstance) => {
+  console.log("pos1", part1.rigidBody!.translation());
+  console.log("pos2", part2.rigidBody!.translation());
+  console.log("rot1", part1.rigidBody!.rotation());
+  console.log("rot2", part2.rigidBody!.rotation());
+  const pos1 = new Vector3(part1.rigidBody!.translation());
+  const pos2 = new Vector3(part2.rigidBody!.translation());
+  const rot1 = new Quaternion(part1.rigidBody!.rotation());
+  const rot2 = new Quaternion(part2.rigidBody!.rotation());
+  const posDiff = pos2.clone().sub(pos1);
+  const posDiffHalf = posDiff.clone().multiplyScalar(0.5);
+  const posDiffHalfInv = posDiffHalf.clone().multiplyScalar(-1);
+  console.log("posDiff", posDiff);
+  world.createImpulseJoint(JointData.fixed(posDiffHalf, new Quaternion(), posDiffHalfInv, new Quaternion()), part1.rigidBody!, part2.rigidBody!, true);
+};
 
 type PartOnShip = {
   part: ShipPartConstructor;
@@ -93,7 +134,7 @@ const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
       for (let colIndex = 0; colIndex < rowLength; colIndex++) {
         const char = row[colIndex];
         if (char === " ") continue;
-        const entry = legend[char as keyof typeof legend];
+        const entry = shipLegend[char as keyof typeof shipLegend];
         if (!entry) continue;
 
         const position = new Vector3(colIndex - xCenterOffset, rowIndex - yCenterOffset, layerIndex - zCenterOffset);
@@ -105,7 +146,7 @@ const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
   // console.log(JSON.stringify(partsOnShip, null, 2));
   return partsOnShip;
 };
-const legend = {
+export const shipLegend = {
   "■": {
     part: WoodenBox,
     rotation: new Euler(0, 0, 0),
@@ -137,6 +178,14 @@ const legend = {
   T: {
     part: Propeller,
     rotation: new Euler(0, 0, 0),
+  },
+  R: {
+    part: SmallRudder,
+    rotation: new Euler(0, degToRad(-45), degToRad(45)),
+  },
+  L: {
+    part: SmallRudder,
+    rotation: new Euler(degToRad(30), degToRad(30), 0),
   },
 };
 

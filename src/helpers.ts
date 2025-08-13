@@ -56,6 +56,7 @@ export class Vector3 extends Vector3Class {
 
 export class Quaternion extends QuaternionClass {
   constructor(xOrQuaternion?: QuaternionLike);
+  constructor(xOrQuaternion?: number, y?: number, z?: number, w?: number);
   constructor(xOrQuaternion?: QuaternionLike | number | undefined, y?: number, z?: number, w?: number) {
     if (typeof xOrQuaternion === "object") {
       super(xOrQuaternion.x, xOrQuaternion.y, xOrQuaternion.z, xOrQuaternion.w);

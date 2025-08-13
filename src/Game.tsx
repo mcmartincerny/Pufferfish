@@ -5,30 +5,22 @@ import {
   AmbientLight,
   BoxGeometry,
   CineonToneMapping,
-  Color,
   ColorSpace,
   CustomToneMapping,
   DepthTexture,
   DirectionalLight,
-  DirectionalLightHelper,
-  Fog,
   HemisphereLight,
   LinearToneMapping,
   Mesh,
   MeshPhongMaterial,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
   NeutralToneMapping,
   NoToneMapping,
   Object3D,
   PerspectiveCamera,
   PlaneGeometry,
-  PointLight,
-  Quaternion,
   ReinhardToneMapping,
   Scene,
-  ShaderMaterial,
-  SphereGeometry,
   ToneMapping,
   UnsignedShortType,
   Vector2,
@@ -37,19 +29,17 @@ import {
 import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
-import { setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { degToRad, resetDebugRigidBodies, Vector3 } from "./helpers";
+import { setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
+import { resetDebugRigidBodies } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import RAPIER, { EventQueue, JointData } from "@dimforge/rapier3d-compat";
+import RAPIER, { EventQueue } from "@dimforge/rapier3d-compat";
 import { CameraSwitcher, CameraType } from "./cameras/CameraSwitcher.ts";
 import { RapierDebugRenderer } from "./Debug.ts";
-import { Sky } from "three/addons/objects/Sky.js";
 import { Water } from "./objects/Water.ts";
 import { BuoyantObject } from "./objects/BuoyantObject.ts";
-import { Ship } from "./objects/Ship.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
 import { ShipPlayer } from "./objects/ShipPlayer.ts";
@@ -158,19 +148,15 @@ const init = () => {
   gui.add(guiHelper, "gravity", -9.81, 9.81).name("Gravity");
   gui.add(guiHelper, "slowMotion").min(1).max(10);
 
-  const ambientLight = new AmbientLight(0xffffff, 0.1);
+  const ambientLight = new AmbientLight(0xffffff, 1);
   scene.add(ambientLight);
 
-  // const light = new PointLight(0xffffff, 30, 0, 1.4);
-  // light.position.set(5, -3, 5);
-  // scene.add(light);
-
   const directionalLight = new DirectionalLight(0xffffff, 10);
-  directionalLight.position.set(10, 5, 20);
+  directionalLight.position.set(18, 13, 20);
   directionalLight.lookAt(0, 0, 0);
   scene.add(directionalLight);
-  const directionalLightHelper = new DirectionalLightHelper(directionalLight, 10);
-  scene.add(directionalLightHelper);
+  // const directionalLightHelper = new DirectionalLightHelper(directionalLight, 10);
+  // scene.add(directionalLightHelper);
 
   const hemisphereLight = new HemisphereLight(0xffffff, 0x444444, 0.1);
   scene.add(hemisphereLight);
@@ -264,26 +250,22 @@ const init = () => {
 
   let running = true;
   let previousTime: number;
-  // eslint-disable-next-line prefer-const
-  let shouldWorldStep = true;
   const animate = (time: number) => {
     if (!running) return;
     stats.begin();
     requestAnimationFrame(animate);
-    traverseObjects(scene, (object) => (object as BetterObject3D).beforeStep?.());
-    cameraSwitcher.beforeStep();
     if (previousTime) {
       let delta = time - previousTime;
       if (delta > 50) {
         delta = 50;
       }
+      setCurrentDeltaTime(delta);
       world.timestep = delta / 1000 / guiHelper.slowMotion;
     }
     previousTime = time;
-    if (shouldWorldStep) {
-      world.step(new EventQueue(true), PhysicsHooks);
-      // shouldWorldStep = false;
-    }
+    traverseObjects(scene, (object) => (object as BetterObject3D).beforeStep?.());
+    cameraSwitcher.beforeStep();
+    world.step(new EventQueue(true), PhysicsHooks);
 
     scene.traverse((object) => (object as BetterObject3D).afterStep?.());
     cameraSwitcher.afterStep();

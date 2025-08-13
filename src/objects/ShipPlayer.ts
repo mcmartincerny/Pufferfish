@@ -21,10 +21,17 @@ export class ShipPlayer extends Ship {
     if (this.pressedKeys.has(THRUST_BACKWARD_KEY)) {
       this.thrustParts.forEach((part) => part.thrust(-1));
     }
-    if (this.pressedKeys.has(RUDDER_LEFT_KEY)) {
-    }
-    if (this.pressedKeys.has(RUDDER_RIGHT_KEY)) {
-    }
+
+    // Rudder control: A = left (-1), D = right (+1)
+    const left = this.pressedKeys.has(RUDDER_LEFT_KEY) ? -1 : 0;
+    const right = this.pressedKeys.has(RUDDER_RIGHT_KEY) ? 1 : 0;
+    const steerInput = Math.max(-1, Math.min(1, left + right));
+
+    this.rudderParts.forEach((rudder) => {
+      rudder.setInput(steerInput);
+      rudder.stepRudder(); // visual only
+      rudder.applyHydrodynamicForces(); // physics impulses
+    });
   }
 
   keyDown = (event: KeyboardEvent) => {

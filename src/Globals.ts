@@ -26,3 +26,9 @@ export let outlinePass: OutlinePass | null = null;
 export const setOutlinePass = (newOutlinePass: OutlinePass) => {
   outlinePass = newOutlinePass;
 };
+
+export let currentDeltaTime = 0;
+
+export const setCurrentDeltaTime = (newDeltaTime: number) => {
+  currentDeltaTime = newDeltaTime;
+};
