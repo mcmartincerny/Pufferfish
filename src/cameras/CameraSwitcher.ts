@@ -44,6 +44,8 @@ export class CameraSwitcher {
   setTarget(target: BetterObject3D) {
     this.cameraTarget = target;
     if (this.thirdPersonCamera) {
+      console.log("setting third person camera target");
+      console.log(this.thirdPersonCamera.target.rigidBody?.translation());
       this.thirdPersonCamera.target = target;
     } else if (this.followingCamera) {
       this.followingCamera.target = target;

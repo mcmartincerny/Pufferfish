@@ -36,9 +36,7 @@ export class ThirdPersonCamera extends BetterObject3D {
     super();
     this.camera = camera;
     this.canvas = canvas;
-    this.rigidBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic().setTranslation(target.position.x, target.position.y, target.position.z + this.zOffset)
-    );
+    this.rigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic());
     this.rigidBody.setGravityScale(0, true);
     this.rigidBody.setLinearDamping(this.linearDamping);
     this.rigidBody.setAdditionalMass(0.01, true);
@@ -52,7 +50,7 @@ export class ThirdPersonCamera extends BetterObject3D {
   set target(newTarget: BetterObject3D) {
     this._target = newTarget;
     if (newTarget) {
-      const position = newTarget.rigidBody?.translation() ?? newTarget.position;
+      const position = this.getSomeTargetPosition(newTarget);
       this.rigidBody.setTranslation(position, true);
     }
   }
@@ -88,17 +86,20 @@ export class ThirdPersonCamera extends BetterObject3D {
 
   afterUpdate() {
     this.turnCameraBasedOnMouse();
-    const idealCameraPosition = this.getTargetPosition().setZ(this.getTargetPosition().z + this.zOffset);
+    const targetPosition = this.getTargetPosition();
+    const idealCameraPosition = targetPosition.clone().setZ(targetPosition.z + this.zOffset);
+    // console.log(this.rigidBody.translation());
     const offsetVector = new Vector3(0, 0, this.behindOffset);
     offsetVector.applyQuaternion(this.camera.quaternion);
     idealCameraPosition.add(offsetVector);
-    if (idealCameraPosition.z < this.getTargetPosition().z - this.maxZBellowTarget) {
-      idealCameraPosition.setZ(this.getTargetPosition().z - this.maxZBellowTarget);
+    if (idealCameraPosition.z < targetPosition.z - this.maxZBellowTarget) {
+      idealCameraPosition.setZ(targetPosition.z - this.maxZBellowTarget);
     }
     if (isNaN(this.rigidBody.translation().x)) {
       console.warn("Rigid body translation is NaN, setting to ideal camera position");
       this.rigidBody!.setTranslation(idealCameraPosition, true);
     }
+    // this.rigidBody!.setTranslation(idealCameraPosition, true);
     const cameraPosition = new Vector3(this.rigidBody.translation());
     const error = idealCameraPosition.sub(cameraPosition);
     const force = error.multiplyScalar(this.moveKp * clamp(error.length(), 0, 20));

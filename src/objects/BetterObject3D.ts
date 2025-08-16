@@ -53,7 +53,7 @@ export class BetterObject3D extends Object3D {
 
   firstUpdateDone = false;
   updatePhysics() {
-    if (this.rigidBody?.isDynamic && (!this.rigidBody.isFixed() || !this.firstUpdateDone)) {
+    if (this.rigidBody?.isDynamic() && (!this.rigidBody.isFixed() || !this.firstUpdateDone)) {
       this.firstUpdateDone = true;
       this.position.copy(this.rigidBody.translation());
       this.quaternion.copy(this.rigidBody.rotation());

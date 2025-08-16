@@ -1,11 +1,11 @@
 import { Euler } from "three";
 import { BetterObject3D } from "./BetterObject3D";
 import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart, RudderPart, SmallRudder } from "./ShipParts";
-import { degToRad, Quaternion, Vector3 } from "../helpers";
+import { degToRad, Quaternion, Vector3, wait } from "../helpers";
 import { shipDesign } from "./shipDesigns";
-import { world } from "../Globals";
-import { JointData } from "@dimforge/rapier3d-compat";
 import { shipHandleIds } from "../PhysicsHooks";
+import { createFixedJoint, createPrismaticJoint } from "../JointUtils";
+import { world } from "../Globals";
 
 export class Ship extends BetterObject3D {
   parts: ShipPartInstance[] = [];
@@ -23,7 +23,7 @@ export class Ship extends BetterObject3D {
       const instance = new Part({ rotation: rotationQuaternion });
       partsHandleIds.add(instance.rigidBody!.handle);
       instance.rigidBody!.setTranslation(position, true);
-      // instance.rigidBody!.setRotation(rotationQuaternion, true);
+      instance.rigidBody!.setRotation(rotationQuaternion, true);
       this.parts.push(instance);
       if (instance instanceof ThrustingPart) {
         this.thrustParts.push(instance);
@@ -32,6 +32,9 @@ export class Ship extends BetterObject3D {
         this.rudderParts.push(instance);
       }
       if (instance instanceof Helm) {
+        if (hasHelm) {
+          throw new Error("Ship has more than one helm");
+        }
         this.helm = instance;
         hasHelm = true;
       }
@@ -41,71 +44,29 @@ export class Ship extends BetterObject3D {
       throw new Error("Ship has no helm");
     }
     shipHandleIds.push(partsHandleIds);
+    this.createFixedJointsBetweenNearbyParts();
+    this.createFixedJointsBetweenPartsAndHelm();
+  }
+
+  createFixedJointsBetweenNearbyParts() {
     for (const part of this.parts) {
       for (const otherPart of this.parts) {
         if (part === otherPart) continue;
-        const nextVector = nextToEachOther(part, otherPart);
-        if (nextVector && nextVector.z === 1) {
-          world.createImpulseJoint(
-            JointData.fixed({ x: 0, y: 0, z: -0.5 }, new Quaternion(), { x: 0, y: 0, z: 0.5 }, new Quaternion()),
-            part.rigidBody!,
-            otherPart.rigidBody!,
-            true
-          );
-        } else if (nextVector && nextVector.x === 1) {
-          world.createImpulseJoint(
-            JointData.fixed({ x: -0.5, y: 0, z: 0 }, new Quaternion(), { x: 0.5, y: 0, z: 0 }, new Quaternion()),
-            part.rigidBody!,
-            otherPart.rigidBody!,
-            true
-          );
-        } else if (nextVector && nextVector.y === 1) {
-          if (part instanceof RudderPart || otherPart instanceof RudderPart) {
-            console.log("part", part.size, "otherPart", otherPart.size);
-            // createFixedJoint(part, otherPart);
-            // world.createImpulseJoint(
-            //   JointData.fixed(
-            //     { x: 0, y: -0.5, z: 0 },
-            //     new Quaternion().setFromEuler(new Euler(0, degToRad(-90), 0)),
-            //     { x: 0, y: 0.5, z: 0 },
-            //     new Quaternion().setFromEuler(new Euler(0, 0, 0))
-            //   ),
-            //   part.rigidBody!,
-            //   otherPart.rigidBody!,
-            //   true
-            // );
-          } else {
-            world.createImpulseJoint(
-              JointData.fixed({ x: 0, y: -0.5, z: 0 }, new Quaternion(), { x: 0, y: 0.5, z: 0 }, new Quaternion()),
-              part.rigidBody!,
-              otherPart.rigidBody!,
-              true
-            );
-          }
+        const nextVector = nextToEachOtherPositive(part, otherPart);
+        if (nextVector) {
+          createFixedJoint(part.rigidBody!, otherPart.rigidBody!);
         }
       }
     }
   }
-}
 
-/**
- * Create a fixed joint between two parts no matter where they are and what their rotation is
- */
-const createFixedJoint = (part1: ShipPartInstance, part2: ShipPartInstance) => {
-  console.log("pos1", part1.rigidBody!.translation());
-  console.log("pos2", part2.rigidBody!.translation());
-  console.log("rot1", part1.rigidBody!.rotation());
-  console.log("rot2", part2.rigidBody!.rotation());
-  const pos1 = new Vector3(part1.rigidBody!.translation());
-  const pos2 = new Vector3(part2.rigidBody!.translation());
-  const rot1 = new Quaternion(part1.rigidBody!.rotation());
-  const rot2 = new Quaternion(part2.rigidBody!.rotation());
-  const posDiff = pos2.clone().sub(pos1);
-  const posDiffHalf = posDiff.clone().multiplyScalar(0.5);
-  const posDiffHalfInv = posDiffHalf.clone().multiplyScalar(-1);
-  console.log("posDiff", posDiff);
-  world.createImpulseJoint(JointData.fixed(posDiffHalf, new Quaternion(), posDiffHalfInv, new Quaternion()), part1.rigidBody!, part2.rigidBody!, true);
-};
+  createFixedJointsBetweenPartsAndHelm() {
+    for (const part of this.parts) {
+      if (part instanceof Helm) continue;
+      createFixedJoint(this.helm.rigidBody!, part.rigidBody!);
+    }
+  }
+}
 
 type PartOnShip = {
   part: ShipPartConstructor;
@@ -181,22 +142,23 @@ export const shipLegend = {
   },
   R: {
     part: SmallRudder,
-    rotation: new Euler(0, degToRad(-45), degToRad(45)),
+    rotation: new Euler(degToRad(0), degToRad(90), degToRad(0)),
   },
   L: {
     part: SmallRudder,
-    rotation: new Euler(degToRad(30), degToRad(30), 0),
+    rotation: new Euler(degToRad(0), degToRad(0), degToRad(0)),
   },
 };
 
 // next to each other means equal any two of X, Y or Z and the third one is different exactly by 1
-const nextToEachOther = (part1: ShipPartInstance, part2: ShipPartInstance) => {
+// this only works in the positive direction - used for only creating joints once
+const nextToEachOtherPositive = (part1: ShipPartInstance, part2: ShipPartInstance) => {
   const pos1 = part1.rigidBody!.translation();
   const pos2 = part2.rigidBody!.translation();
   return (
     ((pos1.x === pos2.x && pos1.y === pos2.y && pos1.z - pos2.z === 1) ||
       (pos1.x === pos2.x && pos1.z === pos2.z && pos1.y - pos2.y === 1) ||
       (pos1.y === pos2.y && pos1.z === pos2.z && pos1.x - pos2.x === 1)) &&
-    new Vector3(pos1).sub(pos2)
+    new Vector3(pos1).sub(pos2) // TODO: We do not need to return the vector, just the boolean
   );
 };

@@ -11,19 +11,19 @@ export type ShipPartInstance = Helm | WoodenBox | WoodenRamp | LeadBox | Propell
 
 export type ShipPartProps = {
   size?: number;
-  rotation?: Quaternion;
+  rotation: Quaternion;
 };
 export class ShipPart extends BuoyantObject {
-  constructRotation?: Quaternion;
+  buildRotation: Quaternion;
   constructor({ size = 1, rotation }: ShipPartProps) {
     super({ size: size });
-    this.constructRotation = rotation;
+    this.buildRotation = rotation;
   }
 }
 
 export class Helm extends ShipPart {
-  constructor() {
-    super({ size: 0.3 });
+  constructor(props: ShipPartProps) {
+    super({ size: 0.3, rotation: props.rotation });
     const geometry = new BoxGeometry(0.8, 0.2, 0.9);
     geometry.translate(0, -0.3, 0);
     const material = new MeshPhongMaterial({ color: randomizeColor(0xaa5555, 0.1) });
@@ -40,8 +40,8 @@ export class Helm extends ShipPart {
 }
 
 export class WoodenBox extends ShipPart {
-  constructor() {
-    super({ size: 1 });
+  constructor(props: ShipPartProps) {
+    super({ size: 1, rotation: props.rotation });
     const geometry = new BoxGeometry(1, 1, 1);
     const material = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.1) });
     const cube = new Mesh(geometry, material);
@@ -59,7 +59,7 @@ export class WoodenBox extends ShipPart {
 export class WoodenRamp extends ShipPart {
   constructor({ rotation }: ShipPartProps) {
     super({ size: 1, rotation: rotation });
-    const { prism, rigidBody, collider } = createPrismWithColider({ length: 1, width: 1, height: 1 }, undefined, rotation);
+    const { prism, rigidBody, collider } = createPrismWithColider({ length: 1, width: 1, height: 1 });
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
     collider.setFriction(0.5);
@@ -70,8 +70,8 @@ export class WoodenRamp extends ShipPart {
 }
 
 export class LeadBox extends WoodenBox {
-  constructor() {
-    super();
+  constructor(props: ShipPartProps) {
+    super(props);
     const material = new MeshPhongMaterial({ color: 0x999999 });
     this.mainMesh!.material = material;
     this.rigidBody!.collider(0).setDensity(10);
@@ -142,8 +142,8 @@ export class RudderPart extends ShipPart {
   // Fraction of turning force applied as longitudinal drag
   dragFraction = 0.3;
 
-  constructor({ size = 0.5 }: { size?: number } = {}) {
-    super({ size });
+  constructor({ size = 0.5, rotation }: ShipPartProps) {
+    super({ size, rotation });
   }
 
   setInput(input: number) {
@@ -215,8 +215,8 @@ export class SmallRudder extends RudderPart {
   turningStrength = 0.1;
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
-  constructor() {
-    super({ size: 0.5 });
+  constructor(props: ShipPartProps) {
+    super({ size: 0.5, rotation: props.rotation });
     // Simple visual: thin vertical plate
     const geometry = new BoxGeometry(0.1, 1, 0.8);
     // Shift pivot to the front (leading edge) so rotation keeps the front in place

@@ -224,7 +224,6 @@ const init = () => {
   scene.add(ship);
   ship.init();
   cameraSwitcher.setTarget(ship);
-
   const groundGeometry = new PlaneGeometry(30, 30, 599, 599);
   const groundMaterial = new MeshPhongMaterial({ color: 0x634214 });
   const ground = new Mesh(groundGeometry, groundMaterial);
