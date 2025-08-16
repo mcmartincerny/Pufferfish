@@ -40,11 +40,7 @@ export const fastShipDesign = [
       "■▒■", 
       "◢■▒■◣",
       "■■■■■",
-      "TT■TT",
-      "  R  ",
-      " TLT ",
-      "RTRTL",
-
+      "TTRTT",
     ],
     [
       "◢■■■◣",
@@ -54,10 +50,6 @@ export const fastShipDesign = [
       "■■■■■", 
       "■■■■■", 
       "◥■■■◤",
-      "TT■TT",
-      "  R  ",
-      " TLT ",
-      "RTRTL",
     ],
     [
       "◢■■■◣", 

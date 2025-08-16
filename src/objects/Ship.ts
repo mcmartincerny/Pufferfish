@@ -142,10 +142,6 @@ export const shipLegend = {
   },
   R: {
     part: SmallRudder,
-    rotation: new Euler(degToRad(0), degToRad(90), degToRad(0)),
-  },
-  L: {
-    part: SmallRudder,
     rotation: new Euler(degToRad(0), degToRad(0), degToRad(0)),
   },
 };

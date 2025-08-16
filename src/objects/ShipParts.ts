@@ -111,6 +111,7 @@ export class ThrustingPart extends ShipPart {
 
 export class Propeller extends ThrustingPart {
   thrustForce = 3;
+  density = 3;
 
   constructor({ rotation }: ShipPartProps) {
     super({ size: 0.5, rotation: rotation });
@@ -122,6 +123,7 @@ export class Propeller extends ThrustingPart {
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
     collider.setFriction(0.5);
+    collider.setDensity(this.density);
     this.rigidBody = rigidBody;
     this.mainMesh = propeller;
     this.add(propeller);

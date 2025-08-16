@@ -18,7 +18,7 @@ export class CameraSwitcher {
   fov = 75;
   aspect = 2;
   near = 0.2;
-  far = 200;
+  far = 500;
   camera: PerspectiveCamera = new PerspectiveCamera(this.fov, this.aspect, this.near, this.far);
   orbitControls?: OrbitControls;
   followingCamera?: TopDownCamera;

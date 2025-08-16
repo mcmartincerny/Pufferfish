@@ -9,7 +9,6 @@ export class ThirdPersonCamera extends BetterObject3D {
   camera: PerspectiveCamera;
   _target!: BetterObject3D;
   canvas: HTMLCanvasElement;
-  rigidBody: RAPIER.RigidBody;
   maxZBellowTarget = 0.8;
   velocityMultiplier = 0.3;
   moveKp = 0.015;
@@ -36,10 +35,6 @@ export class ThirdPersonCamera extends BetterObject3D {
     super();
     this.camera = camera;
     this.canvas = canvas;
-    this.rigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic());
-    this.rigidBody.setGravityScale(0, true);
-    this.rigidBody.setLinearDamping(this.linearDamping);
-    this.rigidBody.setAdditionalMass(0.01, true);
     this.target = target;
   }
 
@@ -49,10 +44,6 @@ export class ThirdPersonCamera extends BetterObject3D {
 
   set target(newTarget: BetterObject3D) {
     this._target = newTarget;
-    if (newTarget) {
-      const position = this.getSomeTargetPosition(newTarget);
-      this.rigidBody.setTranslation(position, true);
-    }
   }
 
   setActive(active: boolean) {
@@ -95,22 +86,7 @@ export class ThirdPersonCamera extends BetterObject3D {
     if (idealCameraPosition.z < targetPosition.z - this.maxZBellowTarget) {
       idealCameraPosition.setZ(targetPosition.z - this.maxZBellowTarget);
     }
-    if (isNaN(this.rigidBody.translation().x)) {
-      console.warn("Rigid body translation is NaN, setting to ideal camera position");
-      this.rigidBody!.setTranslation(idealCameraPosition, true);
-    }
-    // this.rigidBody!.setTranslation(idealCameraPosition, true);
-    const cameraPosition = new Vector3(this.rigidBody.translation());
-    const error = idealCameraPosition.sub(cameraPosition);
-    const force = error.multiplyScalar(this.moveKp * clamp(error.length(), 0, 20));
-    if (force.length() > 0.5) {
-      force.setLength(0.5);
-    }
-    this.rigidBody.applyImpulse(force, true);
-  }
-
-  updatePhysics(): void {
-    this.camera.position.copy(this.rigidBody.translation());
+    this.camera.position.copy(idealCameraPosition);
   }
 
   turnCameraBasedOnMouse(): void {

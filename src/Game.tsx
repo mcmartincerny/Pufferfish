@@ -161,7 +161,7 @@ const init = () => {
   const hemisphereLight = new HemisphereLight(0xffffff, 0x444444, 0.1);
   scene.add(hemisphereLight);
 
-  const sky = new CustomSky();
+  const sky = new CustomSky(camera);
   scene.add(sky);
   sky.init();
 
