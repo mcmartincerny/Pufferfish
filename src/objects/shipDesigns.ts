@@ -2,14 +2,13 @@
 export const normalShipDesign = [
   [
     "◢■◣", 
-    "■▒■", 
-    "■▒■", 
-    "■▒■",
-    "■▒■", 
-    "■▒■",
+    "■L■", 
+    "■L■", 
+    "■L■",
+    "■L■", 
+    "■L■",
     "◥■◤",
-    " T ", 
-    " R "
+    " T "
   ],
   [
     "◢■■■◣",
@@ -18,14 +17,15 @@ export const normalShipDesign = [
     "■■ ■■", 
     "■■■■■", 
     "■■■■■", 
-    "◥■■■◤"
+    "◥■■■◤",
+    "  R  "
   ],
   [
     "◢■■■◣", 
     "■   ■", 
     "■   ■", 
     "■   ■", 
-    "■ ⬡ ■", 
+    "■ H ■", 
     "■   ■", 
     "◥■■■◤"
   ],
@@ -34,13 +34,13 @@ export const normalShipDesign = [
 export const fastShipDesign = [
     [
       "◢■◣", 
-      "■▒■", 
-      "■▒■", 
-      "■▒■",
-      "■▒■", 
-      "◢■▒■◣",
+      "■L■", 
+      "■L■", 
+      "■L■",
+      "■L■", 
+      "◢■L■◣",
       "■■■■■",
-      "TTRTT",
+      "TRTRT",
     ],
     [
       "◢■■■◣",
@@ -56,7 +56,7 @@ export const fastShipDesign = [
       "■   ■", 
       "■   ■", 
       "■   ■", 
-      "■ ⬡ ■", 
+      "■ H ■", 
       "■   ■", 
       "◥■■■◤"
     ],
@@ -70,9 +70,9 @@ export const fastShipDesign = [
       "■■■",
       "■■■", 
       "◢■■■◣",
-      "▒▒▒▒▒",
-      "▒▒▒▒▒",
-      "▒▒▒▒▒",
+      "LLLLL",
+      "LLLLL",
+      "LLLLL",
     ],
     [
         "◢■■■◣",
@@ -81,7 +81,7 @@ export const fastShipDesign = [
         "■■ ■■", 
         "■■■■■", 
         "■■■■■", 
-        "▒▒▒▒▒",
+        "LLLLL",
         "TTRTT", 
     ],
     [
@@ -89,12 +89,78 @@ export const fastShipDesign = [
       "■   ■", 
       "■   ■", 
       "■   ■", 
-      "■ ⬡ ■", 
+      "■ H ■", 
       "■   ■", 
-      "▒▒▒▒▒",
-      "▒▒▒▒▒",
-      "▒▒▒▒▒",
+      "LLLLL",
+      "LLLLL",
+      "LLLLL",
     ],
   ];
+
+  export const catamaranShipDesign = [
+    // Layer 0 — keels (lowest), slim twin hulls + props
+    [
+      " ◢■◣   ◢■◣ ",  // twin pointed bows
+      " ■■■   ■■■ ",
+      " ■■■   ■■■ ",
+      " ■■■   ■■■ ",
+      " ■■■   ■■■ ",
+      " ■■■   ■■■ ",
+      " ■■◤   ◥■■ ",  // twin stern tapers
+      " RT     TR ",  // dual propellers (one per hull)
+    ],
+  
+    // Layer 1 — mid hulls + rudders (gap retained between hulls)
+    [
+      "◢■◣   ◢■◣",  // fuller bows a deck up
+      "■ ■   ■ ■",
+      "■ ■   ■ ■",
+      "■ ■   ■ ■",
+      "■ ■   ■ ■",
+      "■ ■   ■ ■",
+      "◥■◤   ◥■◤",  // stern tapers
+    ],
+  
+    // Layer 2 — bridge deck spanning both hulls
+    [
+        "◢■■■■■■■◣",  // connected deck bow
+        "■■■■■■■■■",
+        "■■■■■■■■■",
+        "■■■■■■■■■",  // helm centered on the bridge
+        "■■■■■■■■■",
+        "■■■■■■■■■",
+        "◥■■■■■■■◤",  // connected deck stern
+    ],
+    
+    // Layer 3 - Helm and stuff
+    [
+        "",
+        "",
+        "◢H◣",
+        "■ ■",  
+        "",
+        "", 
+      ],
+
+      [
+        "",
+        "",
+        "◢ ◣",
+        "■ ■",  
+        "",
+        "", 
+      ],
+
+      [
+      "",
+      "",
+      "◢■◣",
+      "■■■",  
+      "",
+      "", 
+    ],
+  ];
+  
+  
 
 export const shipDesign = fastShipDesign;

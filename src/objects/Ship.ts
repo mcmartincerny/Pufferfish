@@ -128,11 +128,11 @@ export const shipLegend = {
     part: WoodenRamp,
     rotation: new Euler(0, degToRad(90), degToRad(90)),
   },
-  "⬡": {
+  H: {
     part: Helm,
     rotation: new Euler(0, 0, 0),
   },
-  "▒": {
+  L: {
     part: LeadBox,
     rotation: new Euler(0, 0, 0),
   },

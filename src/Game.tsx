@@ -43,6 +43,7 @@ import { BuoyantObject } from "./objects/BuoyantObject.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
 import { ShipPlayer } from "./objects/ShipPlayer.ts";
+import { Terrain } from "./terrain/terrain.ts";
 
 await RAPIER.init();
 
@@ -224,22 +225,14 @@ const init = () => {
   scene.add(ship);
   ship.init();
   cameraSwitcher.setTarget(ship);
-  const groundGeometry = new PlaneGeometry(30, 30, 599, 599);
-  const groundMaterial = new MeshPhongMaterial({ color: 0x634214 });
-  const ground = new Mesh(groundGeometry, groundMaterial);
-  ground.position.z = -10;
-  scene.add(ground);
-  const groundRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0.0, 0.0, -10));
-  const groundCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(15, 15, 0.1).setTranslation(0.0, 0.0, 0.0), groundRigidBody);
-  groundCollider.setRestitution(0.3);
-  groundCollider.setFriction(0.5);
-
-  const depthTexture = new DepthTexture(30, 30, UnsignedShortType);
-  depthTexture.needsUpdate = true;
 
   const water = new Water();
   scene.add(water);
   water.init();
+
+  const terrain = new Terrain();
+  scene.add(terrain);
+  terrain.init();
 
   gui
     .add({}, "dummy", CameraType)
@@ -265,10 +258,8 @@ const init = () => {
     traverseObjects(scene, (object) => (object as BetterObject3D).beforeStep?.());
     cameraSwitcher.beforeStep();
     world.step(new EventQueue(true), PhysicsHooks);
-
     scene.traverse((object) => (object as BetterObject3D).afterStep?.());
     cameraSwitcher.afterStep();
-
     rapierDebugRenderer.update();
     resizeRendererToDisplaySize(renderer, composer, cameraSwitcher.camera);
     composer.render();

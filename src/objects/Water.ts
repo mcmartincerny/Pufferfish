@@ -9,8 +9,8 @@ export class Water extends BetterObject3D {
   waterLevels = 10;
   waterDepth = 10;
   waterSize = 10000;
-  minOpacity = 0.3;
-  maxOpacity = 0.5;
+  minOpacity = 0.1;
+  maxOpacity = 0.2;
   textureResolution = 1000;
   waterMap: DataTexture | null = null;
 
@@ -73,7 +73,6 @@ const generateWaterTexture = (sizeX: number, sizeY: number, zoom = 0.3) => {
   if (generatedWaterTexture) {
     return generatedWaterTexture;
   }
-  console.time("generateWaterTexture");
   const normalWaterColors = [51, 102, 170, 255];
   const semiWhiteWaterColors = [204, 204, 204, 255];
   const whiteWaterColors = [255, 255, 255, 255];
@@ -96,7 +95,6 @@ const generateWaterTexture = (sizeX: number, sizeY: number, zoom = 0.3) => {
     }
   }
   generatedWaterTexture = data;
-  console.timeEnd("generateWaterTexture");
   return data;
 };
 
