@@ -1,6 +1,6 @@
 import RAPIER, { QueryFilterFlags, Ray } from "@dimforge/rapier3d-compat";
 import { world } from "./Globals";
-import { Quaternion as QuaternionClass, QuaternionLike, Vector3 as Vector3Class, Vector3Like } from "three";
+import { Quaternion as QuaternionClass, QuaternionLike, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
 // import { Quaternion as QuaternionClass } from "three";
 
 export function clamp(num: number, min: number, max: number) {
@@ -120,3 +120,7 @@ export const average = (array: number[]) => {
 };
 
 export const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const isVector2 = (value: any): value is Vector2 => {
+  return value.isVector2;
+};

@@ -9,8 +9,8 @@ export class Water extends BetterObject3D {
   waterLevels = 10;
   waterDepth = 10;
   waterSize = 10000;
-  minOpacity = 0.1;
-  maxOpacity = 0.2;
+  minOpacity = 0.2;
+  maxOpacity = 0.3;
   textureResolution = 1000;
   waterMap: DataTexture | null = null;
 

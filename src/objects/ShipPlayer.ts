@@ -1,3 +1,4 @@
+import { Vector3 } from "../helpers";
 import { Ship } from "./Ship";
 
 const THRUST_FORWARD_KEY = "w";
@@ -7,8 +8,8 @@ const RUDDER_RIGHT_KEY = "d";
 
 export class ShipPlayer extends Ship {
   pressedKeys: Set<string> = new Set();
-  constructor() {
-    super();
+  constructor(position: Vector3) {
+    super(position);
 
     document.addEventListener("keydown", this.keyDown);
     document.addEventListener("keyup", this.keyUp);

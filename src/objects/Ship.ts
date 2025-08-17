@@ -12,17 +12,18 @@ export class Ship extends BetterObject3D {
   helm!: Helm;
   thrustParts: ThrustingPart[] = [];
   rudderParts: RudderPart[] = [];
-  constructor() {
+  constructor(position: Vector3) {
     super();
     let hasHelm = false;
     const partsOnShip = shipDesignToPartsOnShip(shipDesign);
     const partsHandleIds: Set<number> = new Set();
     for (const part of partsOnShip) {
-      const { part: Part, position, rotation } = part;
+      const { part: Part, position: partPosition, rotation } = part;
+      const totalPosition = new Vector3(partPosition).add(position);
       const rotationQuaternion = new Quaternion().setFromEuler(rotation);
       const instance = new Part({ rotation: rotationQuaternion });
       partsHandleIds.add(instance.rigidBody!.handle);
-      instance.rigidBody!.setTranslation(position, true);
+      instance.rigidBody!.setTranslation(totalPosition, true);
       instance.rigidBody!.setRotation(rotationQuaternion, true);
       this.parts.push(instance);
       if (instance instanceof ThrustingPart) {

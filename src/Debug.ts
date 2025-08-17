@@ -4,7 +4,8 @@ import { BufferAttribute, BufferGeometry, LineBasicMaterial, LineSegments, Scene
 export class RapierDebugRenderer {
   mesh;
   world;
-  enabled = true;
+  enabled = false;
+  visible = true;
 
   constructor(scene: Scene, world: World) {
     this.world = world;
@@ -12,15 +13,15 @@ export class RapierDebugRenderer {
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
   }
-
   update() {
     if (this.enabled) {
+      this.enabled = false;
       const { vertices, colors } = this.world.debugRender();
       this.mesh.geometry.setAttribute("position", new BufferAttribute(vertices, 3));
       this.mesh.geometry.setAttribute("color", new BufferAttribute(colors, 4));
-      this.mesh.visible = true;
+      this.mesh.visible = this.visible;
     } else {
-      this.mesh.visible = false;
+      this.mesh.visible = this.visible;
     }
   }
 }

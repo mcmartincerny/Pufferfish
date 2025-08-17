@@ -30,7 +30,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { resetDebugRigidBodies } from "./helpers";
+import { resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -44,6 +44,7 @@ import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
 import { ShipPlayer } from "./objects/ShipPlayer.ts";
 import { Terrain } from "./terrain/terrain.ts";
+import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
 
 await RAPIER.init();
 
@@ -152,7 +153,7 @@ const init = () => {
   const ambientLight = new AmbientLight(0xffffff, 1);
   scene.add(ambientLight);
 
-  const directionalLight = new DirectionalLight(0xffffff, 10);
+  const directionalLight = new DirectionalLight(0xffffff, 4);
   directionalLight.position.set(18, 13, 20);
   directionalLight.lookAt(0, 0, 0);
   scene.add(directionalLight);
@@ -221,7 +222,7 @@ const init = () => {
   //   true
   // );
 
-  const ship = new ShipPlayer();
+  const ship = new ShipPlayer(new Vector3(0, 0, 10));
   scene.add(ship);
   ship.init();
   cameraSwitcher.setTarget(ship);
@@ -230,9 +231,9 @@ const init = () => {
   scene.add(water);
   water.init();
 
-  const terrain = new Terrain();
-  scene.add(terrain);
-  terrain.init();
+  const chunkGenerator = new ChunkGenerator({ camera });
+  scene.add(chunkGenerator);
+  chunkGenerator.init();
 
   gui
     .add({}, "dummy", CameraType)

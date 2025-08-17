@@ -1,42 +1,61 @@
-import { DataTexture, DoubleSide, Mesh, MeshStandardMaterial, RedFormat } from "three";
+import { DataTexture, DoubleSide, Mesh, MeshStandardMaterial, RedFormat, RGBAFormat, Vector2 } from "three";
 import { ColliderDesc, HeightFieldFlags, RigidBodyDesc } from "@dimforge/rapier3d-compat";
 import { world } from "../Globals";
 import { BetterObject3D } from "../objects/BetterObject3D";
-import { createNoise2D } from "../utils/simplexNoise";
-import { clamp, Quaternion, Vector3 } from "../helpers";
+import { createNoise2D, NoiseFunction2D } from "../utils/simplexNoise";
+import { clamp, Quaternion, toRange, Vector3 } from "../helpers";
 import { Euler, MeshPhongMaterial, PlaneGeometry } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
+
+type TerrainOptions = {
+  position: Vector2;
+  lod: number;
+  size: number;
+  noiseFunc: NoiseFunction2D;
+};
+
+export const heights: number[] = [];
+const hightModifierBefore = (height: number) => {
+  return height;
+};
+
+const hightModifierAfter = (height: number) => {
+  return height * height;
+};
 
 // TODO: Replace displacement map with a real geometry - displacement does not look as good (lighting, colors)
 export class Terrain extends BetterObject3D {
   minHeight = -20;
   maxHeight = 20;
-  xySize = 400; // 1000 is a sweet spot for performance
-  segments = 50; // segments * segments = total points -- 50 is a sweet spot for performance
-  xyScale = 200; // 0.005 / 200 is a sweet spot for performance
+  segmentsAt1Lod = 100; // segments * segments = total points - 2K is MAX, but is slow
+  noiseScale = 200; // 200
   heightMap: number[];
-  constructor() {
+  constructor({ position, lod, size, noiseFunc }: TerrainOptions) {
     super();
-    this.heightMap = generateHeightMap(this.xySize, this.xySize, this.segments, this.xyScale);
-    this.rigidBody = world.createRigidBody(RigidBodyDesc.fixed().setTranslation(0, 0, this.minHeight));
+    const segments = clamp(Math.round(this.segmentsAt1Lod / lod), 2, 2000);
+    this.heightMap = generateHeightMap(noiseFunc, size, size, segments, this.noiseScale, -position.y, position.x, hightModifierBefore, hightModifierAfter);
+    this.rigidBody = world.createRigidBody(RigidBodyDesc.fixed().setTranslation(position.x, position.y, this.minHeight));
     const colliderDesc = ColliderDesc.heightfield(
-      this.segments - 1,
-      this.segments - 1,
+      segments - 1,
+      segments - 1,
       new Float32Array(this.heightMap),
-      new Vector3(this.xySize, this.maxHeight + Math.abs(this.minHeight), this.xySize),
-      HeightFieldFlags.FIX_INTERNAL_EDGES
+      new Vector3(size, this.maxHeight + Math.abs(this.minHeight), size)
+      // HeightFieldFlags.FIX_INTERNAL_EDGES
     ).setRotation(yToZUpQuat);
     const collider = world.createCollider(colliderDesc, this.rigidBody);
-    collider.setFriction(0.2);
-    collider.setRestitution(0.4);
-    const dataTexture = new DataTexture(new Uint8Array(this.heightMap.map((h) => h * 255)), this.segments, this.segments, RedFormat);
-    dataTexture.needsUpdate = true;
-    const planeGeometry = new PlaneGeometry(this.xySize, this.xySize, this.segments - 1, this.segments - 1);
+    collider.setFriction(0);
+    collider.setRestitution(0);
+    const displacementMap = new DataTexture(new Uint8Array(this.heightMap.map((h) => h * 255)), segments, segments, RedFormat);
+    displacementMap.needsUpdate = true;
+    const textureMap = new DataTexture(hightMapToRGBA(this.heightMap), segments, segments, RGBAFormat);
+    textureMap.needsUpdate = true;
+    const planeGeometry = new PlaneGeometry(size, size, segments - 1, segments - 1);
     const planeMaterial = new MeshPhongMaterial({
-      color: 0x149823,
-      displacementMap: dataTexture,
+      map: textureMap,
+      displacementMap: displacementMap,
       displacementScale: this.maxHeight + Math.abs(this.minHeight),
       side: DoubleSide,
+      // wireframe: true,
     });
     const plane = new Mesh(planeGeometry, planeMaterial);
     plane.rotateZ(degToRad(-90));
@@ -45,15 +64,86 @@ export class Terrain extends BetterObject3D {
   }
 }
 
-const generateHeightMap = (width: number, depth: number, segments: number, scale: number) => {
-  const simplex = createNoise2D();
+// const debug = new Map<number, number>();
+const hightMapToRGBA = (heightMap: number[]) => {
+  // debug should contain key that is rounded to 0.1 digit and value is count of that height
+  const rgba = new Uint8Array(heightMap.length * 4);
+  for (let i = 0; i < heightMap.length; i++) {
+    const height = heightMap[i];
+    // const roundedHeight = Math.round(height * 10) / 10;
+    // debug.set(roundedHeight, (debug.get(roundedHeight) ?? 0) + 1);
+    if (height > 0.8) {
+      // white
+      rgba[i * 4] = 255;
+      rgba[i * 4 + 1] = 255;
+      rgba[i * 4 + 2] = 255;
+      rgba[i * 4 + 3] = 255;
+    } else if (height > 0.7) {
+      // gray
+      rgba[i * 4] = 50;
+      rgba[i * 4 + 1] = 60;
+      rgba[i * 4 + 2] = 80;
+      rgba[i * 4 + 3] = 128;
+    } else if (height > 0.55) {
+      // light green
+      rgba[i * 4] = 0;
+      rgba[i * 4 + 1] = 150;
+      rgba[i * 4 + 2] = 0;
+      rgba[i * 4 + 3] = 150;
+    } else if (height > 0.4) {
+      // yellow
+      rgba[i * 4] = 180;
+      rgba[i * 4 + 1] = 180;
+      rgba[i * 4 + 2] = 0;
+      rgba[i * 4 + 3] = 150;
+    } else {
+      // blue
+      rgba[i * 4] = 0;
+      rgba[i * 4 + 1] = 0;
+      rgba[i * 4 + 2] = 255;
+      rgba[i * 4 + 3] = 255;
+    }
+  }
+  return rgba;
+};
+
+const generateHeightMap = (
+  noiseFunc: NoiseFunction2D,
+  width: number,
+  depth: number,
+  segments: number,
+  scale: number,
+  xOffset: number,
+  yOffset: number,
+  heightModifierBefore?: (height: number) => number,
+  heightModifierAfter?: (height: number) => number
+) => {
+  generationCount++;
   const heightMap = new Array(segments * segments).fill(0);
   for (let x = 0; x < segments; x++) {
     for (let y = 0; y < segments; y++) {
-      const nx = x / (segments / width) / scale;
-      const ny = y / (segments / depth) / scale;
-      const height = 0.8 * simplex(nx, ny) + 0.2 * simplex(nx * 4, ny * 4) + 0.05 * simplex(nx * 16, ny * 16);
-      heightMap[x + y * segments] = (clamp(height, -1, 1) + 1) / 2;
+      const worldX = (x / (segments - 1)) * width + xOffset;
+      const worldY = (y / (segments - 1)) * depth + yOffset;
+
+      const nx = worldX / scale;
+      const ny = worldY / scale;
+
+      let height = 0.8 * noiseFunc(nx, ny) + 0.2 * noiseFunc(nx * 4, ny * 4) + 0.05 * noiseFunc(nx * 16, ny * 16);
+      // special noise function addon for continents
+      const addon = noiseFunc(nx / 16, ny / 16);
+      height += addon * 0.3;
+      height = heightModifierBefore?.(height) ?? height;
+      height = (clamp(height, -1, 1) + 1) / 2;
+      height = heightModifierAfter?.(height) ?? height;
+      heightMap[x + y * segments] = height;
+
+      if (COORD_DEBUG && coordsGenerated.has(`${nx}, ${ny}`)) {
+        coordsGenerated.get(`${nx}, ${ny}`)!.count++;
+        coordsGenerated.get(`${nx}, ${ny}`)!.generations.push(generationCount);
+        coordsGenerated.get(`${nx}, ${ny}`)!.heights.push(height);
+      } else if (COORD_DEBUG) {
+        coordsGenerated.set(`${nx}, ${ny}`, { count: 1, generations: [generationCount], heights: [height] });
+      }
     }
   }
   return heightMap;
@@ -64,4 +154,17 @@ const yToZUpQuat = {
   x: 0.7071067811865476,
   y: 0,
   z: 0,
+};
+
+const COORD_DEBUG = false;
+export const coordsGenerated = new Map<string, { count: number; generations: number[]; heights: number[] }>();
+let generationCount = 0;
+
+export const debugCoordsLog = () => {
+  if (!COORD_DEBUG) return;
+  console.log(
+    [...coordsGenerated].map(
+      ([key, value]) => `${key} - Count:${value.count} - Generations:${value.generations.join(", ")} - Heights:${value.heights.join(", ")}`
+    )
+  );
 };
