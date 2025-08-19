@@ -29,7 +29,15 @@ export class Terrain extends BetterObject3D {
   constructor({ position, lod, noiseFunc, mapGenerationData }: TerrainOptions) {
     super();
     const segments = clamp(Math.round(((this.segmentsAt1Lod / lod) * CHUNK_SIZE) / 64), 2, 2000);
-    this.heightMap = generateHeightMap(noiseFunc, CHUNK_SIZE, CHUNK_SIZE, segments, -position.y, position.x, mapGenerationData.mapSize);
+    this.heightMap = generateHeightMap(
+      noiseFunc,
+      CHUNK_SIZE,
+      CHUNK_SIZE,
+      segments,
+      -position.y - CHUNK_SIZE / 2,
+      position.x - CHUNK_SIZE / 2,
+      mapGenerationData.mapSize
+    );
     this.rigidBody = world.createRigidBody(RigidBodyDesc.fixed().setTranslation(position.x, position.y, this.minHeight));
     const colliderDesc = ColliderDesc.heightfield(
       segments - 1,
