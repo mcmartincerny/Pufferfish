@@ -12,6 +12,7 @@ export type ShipPartInstance = Helm | WoodenBox | WoodenRamp | LeadBox | Propell
 export type ShipPartProps = {
   size?: number;
   rotation: Quaternion;
+  translation: Vector3;
 };
 export class ShipPart extends BuoyantObject {
   buildRotation: Quaternion;
@@ -23,12 +24,12 @@ export class ShipPart extends BuoyantObject {
 
 export class Helm extends ShipPart {
   constructor(props: ShipPartProps) {
-    super({ size: 0.3, rotation: props.rotation });
+    super({ size: 0.3, rotation: props.rotation, translation: props.translation });
     const geometry = new BoxGeometry(0.8, 0.2, 0.9);
     geometry.translate(0, -0.3, 0);
     const material = new MeshPhongMaterial({ color: randomizeColor(0xaa5555, 0.1) });
     const cube = new Mesh(geometry, material);
-    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(0, 0, 0));
+    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(props.translation.x, props.translation.y, props.translation.z));
     const collider = world.createCollider(ColliderDesc.cuboid(0.4, 0.1, 0.45).setTranslation(0.0, -0.3, 0.0), rigidBody);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
@@ -37,15 +38,19 @@ export class Helm extends ShipPart {
     this.mainMesh = cube;
     this.add(cube);
   }
+
+  after300Updates(): void {
+    console.log("pos", this.rigidBody?.translation());
+  }
 }
 
 export class WoodenBox extends ShipPart {
   constructor(props: ShipPartProps) {
-    super({ size: 1, rotation: props.rotation });
+    super({ size: 1, rotation: props.rotation, translation: props.translation });
     const geometry = new BoxGeometry(1, 1, 1);
     const material = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.1) });
     const cube = new Mesh(geometry, material);
-    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(0, 0, 0));
+    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(props.translation.x, props.translation.y, props.translation.z));
     const collider = world.createCollider(ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), rigidBody);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3); // TODO: maybe restitution and friction are not needed at all
@@ -57,9 +62,9 @@ export class WoodenBox extends ShipPart {
 }
 
 export class WoodenRamp extends ShipPart {
-  constructor({ rotation }: ShipPartProps) {
-    super({ size: 1, rotation: rotation });
-    const { prism, rigidBody, collider } = createPrismWithColider({ length: 1, width: 1, height: 1 });
+  constructor({ rotation, translation }: ShipPartProps) {
+    super({ size: 1, rotation: rotation, translation: translation });
+    const { prism, rigidBody, collider } = createPrismWithColider({ length: 1, width: 1, height: 1 }, undefined, undefined, translation);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
     collider.setFriction(0.5);
@@ -84,8 +89,8 @@ export class ThrustingPart extends ShipPart {
   thrustForce = 0;
   needsWater = true;
 
-  constructor({ size = 1, rotation }: ShipPartProps) {
-    super({ size: size, rotation: rotation });
+  constructor({ size = 1, rotation, translation }: ShipPartProps) {
+    super({ size: size, rotation: rotation, translation: translation });
   }
 
   /*
@@ -113,12 +118,12 @@ export class Propeller extends ThrustingPart {
   thrustForce = 3;
   density = 3;
 
-  constructor({ rotation }: ShipPartProps) {
-    super({ size: 0.5, rotation: rotation });
+  constructor({ rotation, translation }: ShipPartProps) {
+    super({ size: 0.5, rotation: rotation, translation: translation });
     const geometry = new CylinderGeometry(0.2, 0.2, 1, 10, 1);
     const material = new MeshPhongMaterial({ color: 0x999999 });
     const propeller = new Mesh(geometry, material);
-    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(0, 0, 0));
+    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(translation.x, translation.y, translation.z));
     const collider = world.createCollider(ColliderDesc.cylinder(0.5, 0.2).setTranslation(0.0, 0.0, 0.0), rigidBody);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
@@ -144,8 +149,8 @@ export class RudderPart extends ShipPart {
   // Fraction of turning force applied as longitudinal drag
   dragFraction = 0.3;
 
-  constructor({ size = 0.5, rotation }: ShipPartProps) {
-    super({ size, rotation });
+  constructor({ size = 0.5, rotation, translation }: ShipPartProps) {
+    super({ size, rotation, translation });
   }
 
   setInput(input: number) {
@@ -218,7 +223,7 @@ export class SmallRudder extends RudderPart {
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
   constructor(props: ShipPartProps) {
-    super({ size: 0.5, rotation: props.rotation });
+    super({ size: 0.5, rotation: props.rotation, translation: props.translation });
     // Simple visual: thin vertical plate
     const geometry = new BoxGeometry(0.1, 1, 0.8);
     // Shift pivot to the front (leading edge) so rotation keeps the front in place
@@ -228,7 +233,7 @@ export class SmallRudder extends RudderPart {
     // Place hinge at the cell boundary toward the ship (Y - 0.5)
     rudderMesh.position.y = -0.5;
 
-    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(0, 0, 0));
+    const rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(props.translation.x, props.translation.y, props.translation.z));
     const collider = world.createCollider(ColliderDesc.cuboid(0.05, 0.5, 0.4).setTranslation(0.0, 0.0, 0.0), rigidBody);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.2);

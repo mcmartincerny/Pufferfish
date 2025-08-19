@@ -21,9 +21,8 @@ export class Ship extends BetterObject3D {
       const { part: Part, position: partPosition, rotation } = part;
       const totalPosition = new Vector3(partPosition).add(position);
       const rotationQuaternion = new Quaternion().setFromEuler(rotation);
-      const instance = new Part({ rotation: rotationQuaternion });
+      const instance = new Part({ rotation: rotationQuaternion, translation: totalPosition });
       partsHandleIds.add(instance.rigidBody!.handle);
-      instance.rigidBody!.setTranslation(totalPosition, true);
       instance.rigidBody!.setRotation(rotationQuaternion, true);
       this.parts.push(instance);
       if (instance instanceof ThrustingPart) {

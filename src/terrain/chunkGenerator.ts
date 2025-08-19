@@ -1,12 +1,15 @@
 import { PerspectiveCamera, Vector2 } from "three";
 import { BetterObject3D } from "../objects/BetterObject3D";
 import { debugCoordsLog, heights, Terrain } from "./terrain";
-import { createNoise2D } from "../utils/simplexNoise";
+import { createNoise2D, NoiseFunction2D } from "../utils/simplexNoise";
 import { average, isVector2, Vector3 } from "../helpers";
 import { gui } from "../Globals";
+import alea from "alea";
+import { MapGenerationData } from "../ui/NewMap";
 
 type ChunkGeneratorProps = {
   camera: PerspectiveCamera;
+  mapGenerationData: MapGenerationData;
 };
 
 type Chunk = {
@@ -15,28 +18,37 @@ type Chunk = {
   lod: number;
 };
 
+/**
+ * CPU time measurement at different chunk sizes
+ * 64: 5.7ms
+ * 128: 4.05ms
+ * 256: 3.75ms - dip 50ms
+ * 512: 3.55ms - dip 250ms // bigger dips
+ */
+export const CHUNK_SIZE = 256; // 64 is the sweet spot for FPS
+
 export class ChunkGenerator extends BetterObject3D {
   camera: PerspectiveCamera;
-  chunkSize = 64;
   viewDistance = 800;
   lodTillDistance = { 200: 1, 400: 2, 500: 4, 600: 8, 700: 16, fallback: 32 };
   replaceMoreDetailedChunksForLessDetailed = true;
-  onlyOneGenPerUpdate = false;
+  onlyOneGenPerUpdate = true;
   chunks: Chunk[] = [];
-  noiseFunc = createNoise2D();
-  constructor({ camera }: ChunkGeneratorProps) {
+  mapGenerationData: MapGenerationData;
+  noiseFunc: NoiseFunction2D;
+  constructor({ camera, mapGenerationData }: ChunkGeneratorProps) {
     super();
     this.camera = camera;
-    const guiFolder = gui.addFolder("Chunk generator");
-    guiFolder.close();
-    guiFolder.add(this, "chunkSize").min(1).max(100).step(1).name("Chunk size");
-    guiFolder.add(this, "viewDistance").min(10).max(2000).step(10).name("View distance");
-    guiFolder.add(this, "replaceMoreDetailedChunksForLessDetailed").name("Replace more detailed chunks for less detailed");
-    guiFolder.add(this, "onlyOneGenPerUpdate").name("Only one gen per update");
+    this.mapGenerationData = mapGenerationData;
+    if (this.mapGenerationData.seed) {
+      this.noiseFunc = createNoise2D(alea(this.mapGenerationData.seed));
+    } else {
+      this.noiseFunc = createNoise2D(alea());
+    }
   }
 
   after30Updates(): void {
-    this.generateChunks();
+    this.generateChunks(); // TODO: 1-6ms - maybe try putting it into service worker
   }
 
   generateChunks(): void {
@@ -62,7 +74,7 @@ export class ChunkGenerator extends BetterObject3D {
   }
 
   createChunk(position: Vector2, lod: number) {
-    const terrain = new Terrain({ position, lod, size: this.chunkSize, noiseFunc: this.noiseFunc });
+    const terrain = new Terrain({ position, lod, noiseFunc: this.noiseFunc, mapGenerationData: this.mapGenerationData });
     this.chunks.push({ position, terrain, lod });
     this.add(terrain);
     terrain.init();
@@ -82,7 +94,10 @@ export class ChunkGenerator extends BetterObject3D {
   }
 
   getNearestChunkVector(position: Vector2 | Vector3) {
-    return new Vector2(Math.floor(position.x / this.chunkSize) * this.chunkSize, Math.floor(position.y / this.chunkSize) * this.chunkSize);
+    return new Vector2(
+      Math.floor((position.x + CHUNK_SIZE / 2) / CHUNK_SIZE) * CHUNK_SIZE,
+      Math.floor((position.y + CHUNK_SIZE / 2) / CHUNK_SIZE) * CHUNK_SIZE
+    );
   }
 
   getNearestChunk(position: Vector2 | Vector3) {
@@ -95,7 +110,7 @@ export class ChunkGenerator extends BetterObject3D {
   }
 
   getAllChunkVectorsInView() {
-    const viewDistanceFullChunks = Math.floor(this.viewDistance / this.chunkSize) * this.chunkSize;
+    const viewDistanceFullChunks = Math.floor(this.viewDistance / CHUNK_SIZE) * CHUNK_SIZE;
     const cameraPosition = this.camera.position;
     const nearestChunk = this.getNearestChunkVector(cameraPosition);
     const xMin = nearestChunk.x - viewDistanceFullChunks;
@@ -103,8 +118,8 @@ export class ChunkGenerator extends BetterObject3D {
     const yMin = nearestChunk.y - viewDistanceFullChunks;
     const yMax = nearestChunk.y + viewDistanceFullChunks;
     const chunkVectors: { vector: Vector2; distance: number; lod: number }[] = [];
-    for (let x = xMin; x <= xMax; x += this.chunkSize) {
-      for (let y = yMin; y <= yMax; y += this.chunkSize) {
+    for (let x = xMin; x <= xMax; x += CHUNK_SIZE) {
+      for (let y = yMin; y <= yMax; y += CHUNK_SIZE) {
         const vector = new Vector2(x, y);
         const distance = vector.distanceTo(cameraPosition);
         const lod = this.getLod(distance);

@@ -11,14 +11,15 @@ export class CustomSky extends BetterObject3D {
 
   async loadAndSetTexture() {
     const texture = await new TextureLoader().loadAsync("sky8K.jpg");
-    const geometry = new SphereGeometry(400, 100, 100);
+    const geometry = new SphereGeometry(900, 100, 100); // first number is radius, should be little less then camera.far
     geometry.rotateX(Math.PI / 2);
     const material = new MeshBasicMaterial({ map: texture, side: BackSide });
     const sphere = new Mesh(geometry, material);
     this.add(sphere);
   }
 
-  after30Updates(): void {
+  // TODO: maybe change to after30Updates
+  afterUpdate(): void {
     this.position.copy(this.camera.position);
   }
 }

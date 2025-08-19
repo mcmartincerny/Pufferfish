@@ -42,6 +42,9 @@ export class BetterObject3D extends Object3D {
     if (this.updateCounter % 30 === 0) {
       this.after30Updates();
     }
+    if (this.updateCounter % 300 === 0) {
+      this.after300Updates();
+    }
     this.updatePhysics();
   }
 
@@ -50,6 +53,8 @@ export class BetterObject3D extends Object3D {
   afterUpdate() {}
 
   after30Updates() {}
+
+  after300Updates() {}
 
   firstUpdateDone = false;
   updatePhysics() {

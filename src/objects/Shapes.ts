@@ -10,10 +10,11 @@ import {
   TubeGeometry,
   Vector2,
   Vector3,
+  Vector3Like,
   Vector3Tuple,
 } from "three";
 import { world } from "../Globals";
-import RAPIER from "@dimforge/rapier3d-compat";
+import RAPIER, { RigidBody } from "@dimforge/rapier3d-compat";
 
 interface PrismProps {
   length: number;
@@ -37,7 +38,12 @@ export class PrismGeometry extends ExtrudeGeometry {
   }
 }
 
-export const createPrismWithColider = (prismProps: PrismProps, position: Vector3Tuple = [0, 0, 0], rotation?: Quaternion) => {
+export const createPrismWithColider = (
+  prismProps: PrismProps,
+  position: Vector3Tuple = [0, 0, 0],
+  rotation?: Quaternion,
+  positionOnlyRigidBody?: Vector3Like
+) => {
   const prismGeometry = new PrismGeometry(prismProps);
   const halfLength = prismProps.length / 2;
   const halfWidth = prismProps.width / 2;
@@ -51,7 +57,12 @@ export const createPrismWithColider = (prismProps: PrismProps, position: Vector3
   // position should be in the center of the prism
 
   prism.position.set(...position);
-  const rigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(...position));
+  let rigidBody: RigidBody;
+  if (positionOnlyRigidBody) {
+    rigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(positionOnlyRigidBody.x, positionOnlyRigidBody.y, positionOnlyRigidBody.z));
+  } else {
+    rigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(...position));
+  }
   const collider = world.createCollider(createConvexMeshColliderForMesh(prism), rigidBody);
   return {
     prism,

@@ -6,40 +6,36 @@ import { createNoise2D, NoiseFunction2D } from "../utils/simplexNoise";
 import { clamp, Quaternion, toRange, Vector3 } from "../helpers";
 import { Euler, MeshPhongMaterial, PlaneGeometry } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
+import { CHUNK_SIZE } from "./chunkGenerator";
+import { MapGenerationData } from "../ui/NewMap";
+
+export const heights: number[] = [];
+
+export const NOISE_SCALE = 200;
 
 type TerrainOptions = {
   position: Vector2;
   lod: number;
-  size: number;
   noiseFunc: NoiseFunction2D;
-};
-
-export const heights: number[] = [];
-const hightModifierBefore = (height: number) => {
-  return height;
-};
-
-const hightModifierAfter = (height: number) => {
-  return height * height;
+  mapGenerationData: MapGenerationData;
 };
 
 // TODO: Replace displacement map with a real geometry - displacement does not look as good (lighting, colors)
 export class Terrain extends BetterObject3D {
   minHeight = -20;
   maxHeight = 20;
-  segmentsAt1Lod = 100; // segments * segments = total points - 2K is MAX, but is slow
-  noiseScale = 200; // 200
+  segmentsAt1Lod = 100; // segments * segments = total points - segments per chunk of size 64 - bigger chunks = more points
   heightMap: number[];
-  constructor({ position, lod, size, noiseFunc }: TerrainOptions) {
+  constructor({ position, lod, noiseFunc, mapGenerationData }: TerrainOptions) {
     super();
-    const segments = clamp(Math.round(this.segmentsAt1Lod / lod), 2, 2000);
-    this.heightMap = generateHeightMap(noiseFunc, size, size, segments, this.noiseScale, -position.y, position.x, hightModifierBefore, hightModifierAfter);
+    const segments = clamp(Math.round(((this.segmentsAt1Lod / lod) * CHUNK_SIZE) / 64), 2, 2000);
+    this.heightMap = generateHeightMap(noiseFunc, CHUNK_SIZE, CHUNK_SIZE, segments, -position.y, position.x, mapGenerationData.mapSize);
     this.rigidBody = world.createRigidBody(RigidBodyDesc.fixed().setTranslation(position.x, position.y, this.minHeight));
     const colliderDesc = ColliderDesc.heightfield(
       segments - 1,
       segments - 1,
       new Float32Array(this.heightMap),
-      new Vector3(size, this.maxHeight + Math.abs(this.minHeight), size)
+      new Vector3(CHUNK_SIZE, this.maxHeight + Math.abs(this.minHeight), CHUNK_SIZE)
       // HeightFieldFlags.FIX_INTERNAL_EDGES
     ).setRotation(yToZUpQuat);
     const collider = world.createCollider(colliderDesc, this.rigidBody);
@@ -49,7 +45,7 @@ export class Terrain extends BetterObject3D {
     displacementMap.needsUpdate = true;
     const textureMap = new DataTexture(hightMapToRGBA(this.heightMap), segments, segments, RGBAFormat);
     textureMap.needsUpdate = true;
-    const planeGeometry = new PlaneGeometry(size, size, segments - 1, segments - 1);
+    const planeGeometry = new PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments - 1, segments - 1);
     const planeMaterial = new MeshPhongMaterial({
       map: textureMap,
       displacementMap: displacementMap,
@@ -65,9 +61,9 @@ export class Terrain extends BetterObject3D {
 }
 
 // const debug = new Map<number, number>();
-const hightMapToRGBA = (heightMap: number[]) => {
+export const hightMapToRGBA = (heightMap: number[]) => {
   // debug should contain key that is rounded to 0.1 digit and value is count of that height
-  const rgba = new Uint8Array(heightMap.length * 4);
+  const rgba = new Uint8ClampedArray(heightMap.length * 4);
   for (let i = 0; i < heightMap.length; i++) {
     const height = heightMap[i];
     // const roundedHeight = Math.round(height * 10) / 10;
@@ -83,19 +79,19 @@ const hightMapToRGBA = (heightMap: number[]) => {
       rgba[i * 4] = 50;
       rgba[i * 4 + 1] = 60;
       rgba[i * 4 + 2] = 80;
-      rgba[i * 4 + 3] = 128;
+      rgba[i * 4 + 3] = 255;
     } else if (height > 0.55) {
       // light green
       rgba[i * 4] = 0;
       rgba[i * 4 + 1] = 150;
       rgba[i * 4 + 2] = 0;
-      rgba[i * 4 + 3] = 150;
+      rgba[i * 4 + 3] = 255;
     } else if (height > 0.4) {
       // yellow
       rgba[i * 4] = 180;
       rgba[i * 4 + 1] = 180;
       rgba[i * 4 + 2] = 0;
-      rgba[i * 4 + 3] = 150;
+      rgba[i * 4 + 3] = 255;
     } else {
       // blue
       rgba[i * 4] = 0;
@@ -107,16 +103,15 @@ const hightMapToRGBA = (heightMap: number[]) => {
   return rgba;
 };
 
-const generateHeightMap = (
+export const generateHeightMap = (
   noiseFunc: NoiseFunction2D,
   width: number,
   depth: number,
   segments: number,
-  scale: number,
   xOffset: number,
   yOffset: number,
-  heightModifierBefore?: (height: number) => number,
-  heightModifierAfter?: (height: number) => number
+  wholeMapSize?: number,
+  rightToLeft?: boolean
 ) => {
   generationCount++;
   const heightMap = new Array(segments * segments).fill(0);
@@ -125,17 +120,37 @@ const generateHeightMap = (
       const worldX = (x / (segments - 1)) * width + xOffset;
       const worldY = (y / (segments - 1)) * depth + yOffset;
 
-      const nx = worldX / scale;
-      const ny = worldY / scale;
+      const nx = worldX / NOISE_SCALE;
+      const ny = worldY / NOISE_SCALE;
 
       let height = 0.8 * noiseFunc(nx, ny) + 0.2 * noiseFunc(nx * 4, ny * 4) + 0.05 * noiseFunc(nx * 16, ny * 16);
       // special noise function addon for continents
-      const addon = noiseFunc(nx / 16, ny / 16);
+      const addon = noiseFunc(nx / 4, ny / 4);
       height += addon * 0.3;
-      height = heightModifierBefore?.(height) ?? height;
       height = (clamp(height, -1, 1) + 1) / 2;
-      height = heightModifierAfter?.(height) ?? height;
-      heightMap[x + y * segments] = height;
+      height = height * height; // make it more exponential but smaller in average
+
+      if (wholeMapSize) {
+        const half = wholeMapSize / 2;
+
+        // distance from center (0,0)
+        const distX = Math.abs(worldX);
+        const distY = Math.abs(worldY);
+        const dist = Math.sqrt(distX * distX + distY * distY);
+
+        // normalized 0 → 1 (center → edge)
+        const norm = clamp(dist / half, 0, 1);
+
+        // start falloff only after 90% of the radius
+        const edgeStart = 0.8;
+        if (norm > edgeStart) {
+          const t = (norm - edgeStart) / (1 - edgeStart); // remap to 0→1
+          height *= 1 - t * t * t; // quadratic fade
+        }
+      }
+
+      const adjustedY = rightToLeft ? segments - 1 - y : y;
+      heightMap[x + adjustedY * segments] = height;
 
       if (COORD_DEBUG && coordsGenerated.has(`${nx}, ${ny}`)) {
         coordsGenerated.get(`${nx}, ${ny}`)!.count++;

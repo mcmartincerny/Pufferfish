@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ACESFilmicToneMapping,
   AgXToneMapping,
@@ -29,7 +29,7 @@ import {
 import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
-import { setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
+import { MAP_GENERATION_DATA_DEFAULT, setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
 import { resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -45,42 +45,47 @@ import { CustomSky } from "./objects/Sky.ts";
 import { ShipPlayer } from "./objects/ShipPlayer.ts";
 import { Terrain } from "./terrain/terrain.ts";
 import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
-
+import { MainMenu } from "./ui/MainMenu.tsx";
+import { MapGenerationData } from "./ui/NewMap.tsx";
 await RAPIER.init();
 
 const stats = new Stats();
 
 export const Game = () => {
   const [reset, setReset] = useState(false);
+  const [mapGenerationData, setMapGenerationData] = useState<MapGenerationData>(MAP_GENERATION_DATA_DEFAULT);
+
+  const reloadGame = useCallback(() => {
+    setReset((r) => !r);
+  }, []);
+
+  const generateMap = useCallback((mapGenerationData: MapGenerationData) => {
+    setMapGenerationData(mapGenerationData);
+    setReset((r) => !r);
+  }, []);
 
   useEffect(() => {
-    return init();
+    return init(mapGenerationData);
   }, [reset]);
 
   useEffect(() => {
-    const keyDownListener = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "r") {
-        setReset((r) => !r);
-      }
-    };
-    document.addEventListener("keydown", keyDownListener);
     stats.showPanel(0);
     (stats.dom.children[1] as HTMLElement).style.display = "block";
     document.body.appendChild(stats.dom);
     return () => {
       document.body.removeChild(stats.dom);
-      document.removeEventListener("keydown", keyDownListener);
     };
   }, []);
 
   return (
     <>
       <canvas id="mainCanvas" />
+      <MainMenu reloadGame={reloadGame} generateMap={generateMap} mapGenerationData={mapGenerationData} />
     </>
   );
 };
 
-const init = () => {
+const init = (mapGenerationData: MapGenerationData) => {
   console.log("init");
   const gui = new GUI();
   gui.$title.textContent = "Debug";
@@ -222,7 +227,7 @@ const init = () => {
   //   true
   // );
 
-  const ship = new ShipPlayer(new Vector3(0, 0, 10));
+  const ship = new ShipPlayer(new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10));
   scene.add(ship);
   ship.init();
   cameraSwitcher.setTarget(ship);
@@ -231,7 +236,7 @@ const init = () => {
   scene.add(water);
   water.init();
 
-  const chunkGenerator = new ChunkGenerator({ camera });
+  const chunkGenerator = new ChunkGenerator({ camera, mapGenerationData });
   scene.add(chunkGenerator);
   chunkGenerator.init();
 
@@ -241,10 +246,13 @@ const init = () => {
     .setValue(cameraSwitcher.type)
     .onChange((type: CameraType) => cameraSwitcher.switchCamera(type));
 
+  const cpuTimeStats = createCpuTimeStats();
+
   let running = true;
   let previousTime: number;
   const animate = (time: number) => {
     if (!running) return;
+    cpuTimeStats.start();
     stats.begin();
     requestAnimationFrame(animate);
     if (previousTime) {
@@ -265,6 +273,7 @@ const init = () => {
     resizeRendererToDisplaySize(renderer, composer, cameraSwitcher.camera);
     composer.render();
     stats.end();
+    cpuTimeStats.end();
   };
   animate(performance.now());
 
@@ -291,6 +300,38 @@ function traverseObjects(obj: Object3D, callback: (obj: Object3D) => void) {
     }
   }
 }
+
+const createCpuTimeStats = () => {
+  // returns 2 functions that will be called when start and end of the measurement
+  // it will create variables to track time in the last 10 seconds and will add to them
+  // after a few seconds it will console.log the average and reset the variables
+  let startTime = 0;
+  let time = 0;
+  let count = 0;
+  let measurementStart = 0;
+  let longestTime = 0;
+  return {
+    start: () => {
+      measurementStart = performance.now();
+    },
+    end: () => {
+      count++;
+      const currentTime = performance.now();
+      time += currentTime - measurementStart;
+      longestTime = Math.max(longestTime, currentTime - measurementStart);
+      if (startTime === 0) {
+        startTime = currentTime;
+      }
+      if (startTime + 5000 < currentTime) {
+        console.log(`Average CPU time: ${(time / count).toFixed(2)}ms, longest: ${longestTime.toFixed(2)}ms`);
+        startTime = currentTime;
+        time = 0;
+        count = 0;
+        longestTime = 0;
+      }
+    },
+  };
+};
 
 let previousAspectRatio = 0;
 
