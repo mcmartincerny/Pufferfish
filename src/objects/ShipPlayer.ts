@@ -16,6 +16,7 @@ export class ShipPlayer extends Ship {
   }
 
   beforeUpdate(): void {
+    super.beforeUpdate();
     if (this.pressedKeys.has(THRUST_FORWARD_KEY)) {
       this.thrustParts.forEach((part) => part.thrust(1));
     }

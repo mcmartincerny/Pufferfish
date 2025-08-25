@@ -6,7 +6,7 @@ const BUOYANCY_FACTOR = 0.2;
 const HORIZONTAL_DRAG_FACTOR = 0.01; // Reduced for ships to move fast horizontally
 const VERTICAL_DRAG_FACTOR = 0.04; // Higher to reduce bouncing
 const OBJECT_SIZE = 1;
-const ANGULAR_DAMPING = 0.005;
+const ANGULAR_DAMPING = 0.1; // TODO: Delete this when propper damping is implemented
 
 /**
  * BuoyantObject is a class that represents an object that is buoyant.
@@ -20,11 +20,11 @@ export class BuoyantObject extends BetterObject3D {
     this.size = size;
   }
 
-  beforeStep(): void {
+  beforeUpdate(): void {
     const numColliders = this.rigidBody?.numColliders();
     if (!this.rigidBody || !numColliders || numColliders === 0) return;
 
-    const percentageSubmergedPerCollider = [];
+    const percentageSubmergedPerCollider = []; // TODO: calculate submerged volume using raycasting from the bottom of the object
     for (let i = 0; i < numColliders; i++) {
       const collider = this.rigidBody.collider(i);
       const z = collider.translation().z;

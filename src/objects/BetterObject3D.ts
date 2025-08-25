@@ -23,12 +23,6 @@ export class BetterObject3D extends Object3D {
         child.init();
       }
     });
-    setTimeout(() => {
-      if (this.rigidBody == null) {
-        console.warn("Maybe change later? Removing position.");
-        this.position.set(0, 0, 0);
-      }
-    }, 0);
   }
 
   beforeStep() {

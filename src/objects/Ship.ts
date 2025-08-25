@@ -1,29 +1,31 @@
 import { Euler } from "three";
-import { BetterObject3D } from "./BetterObject3D";
+import { BuoyantObject } from "./BuoyantObject";
 import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart, RudderPart, SmallRudder } from "./ShipParts";
-import { degToRad, Quaternion, Vector3, wait } from "../helpers";
+import { degToRad, Quaternion, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
-import { shipHandleIds } from "../PhysicsHooks";
-import { createFixedJoint, createPrismaticJoint } from "../JointUtils";
 import { world } from "../Globals";
+import { RigidBody, RigidBodyDesc } from "@dimforge/rapier3d-compat";
 
-export class Ship extends BetterObject3D {
+export class Ship extends BuoyantObject {
+  rigidBody: RigidBody;
   parts: ShipPartInstance[] = [];
   helm!: Helm;
   thrustParts: ThrustingPart[] = [];
   rudderParts: RudderPart[] = [];
   constructor(position: Vector3) {
-    super();
+    super({ size: 1 });
+    // Single rigid body for the entire ship
+    this.rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(position.x, position.y, position.z));
     let hasHelm = false;
     const partsOnShip = shipDesignToPartsOnShip(shipDesign);
-    const partsHandleIds: Set<number> = new Set();
     for (const part of partsOnShip) {
       const { part: Part, position: partPosition, rotation } = part;
-      const totalPosition = new Vector3(partPosition).add(position);
       const rotationQuaternion = new Quaternion().setFromEuler(rotation);
-      const instance = new Part({ rotation: rotationQuaternion, translation: totalPosition });
-      partsHandleIds.add(instance.rigidBody!.handle);
-      instance.rigidBody!.setRotation(rotationQuaternion, true);
+      // Create part with LOCAL transform relative to the ship's origin
+      const instance = new Part({ rotation: rotationQuaternion, translation: partPosition });
+      instance.mainMesh!.setRotationFromQuaternion(rotationQuaternion.invert());
+      // Attach colliders to the ship's single rigid body
+      instance.attachToShip(this);
       this.parts.push(instance);
       if (instance instanceof ThrustingPart) {
         this.thrustParts.push(instance);
@@ -42,28 +44,6 @@ export class Ship extends BetterObject3D {
     }
     if (!hasHelm) {
       throw new Error("Ship has no helm");
-    }
-    shipHandleIds.push(partsHandleIds);
-    this.createFixedJointsBetweenNearbyParts();
-    this.createFixedJointsBetweenPartsAndHelm();
-  }
-
-  createFixedJointsBetweenNearbyParts() {
-    for (const part of this.parts) {
-      for (const otherPart of this.parts) {
-        if (part === otherPart) continue;
-        const nextVector = nextToEachOtherPositive(part, otherPart);
-        if (nextVector) {
-          createFixedJoint(part.rigidBody!, otherPart.rigidBody!);
-        }
-      }
-    }
-  }
-
-  createFixedJointsBetweenPartsAndHelm() {
-    for (const part of this.parts) {
-      if (part instanceof Helm) continue;
-      createFixedJoint(this.helm.rigidBody!, part.rigidBody!);
     }
   }
 }
@@ -148,13 +128,4 @@ export const shipLegend = {
 
 // next to each other means equal any two of X, Y or Z and the third one is different exactly by 1
 // this only works in the positive direction - used for only creating joints once
-const nextToEachOtherPositive = (part1: ShipPartInstance, part2: ShipPartInstance) => {
-  const pos1 = part1.rigidBody!.translation();
-  const pos2 = part2.rigidBody!.translation();
-  return (
-    ((pos1.x === pos2.x && pos1.y === pos2.y && pos1.z - pos2.z === 1) ||
-      (pos1.x === pos2.x && pos1.z === pos2.z && pos1.y - pos2.y === 1) ||
-      (pos1.y === pos2.y && pos1.z === pos2.z && pos1.x - pos2.x === 1)) &&
-    new Vector3(pos1).sub(pos2) // TODO: We do not need to return the vector, just the boolean
-  );
-};
+// With single-body ship, neighbor checks are no longer needed
