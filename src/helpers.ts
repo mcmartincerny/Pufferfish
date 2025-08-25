@@ -71,6 +71,12 @@ export const log50 = (...values: any[]) => {
   }
 };
 
+export const log10000 = (...values: any[]) => {
+  if (Math.random() < 0.0001) {
+    console.log(...values);
+  }
+};
+
 /**
  * debug rigid body used only for visualizing some position
  * if there isn't one already created, it creates it and sets the position
@@ -99,8 +105,14 @@ export const resetDebugRigidBodies = () => {
   debugRigidBodies.clear();
 };
 
-export const castRay = (position: Vector3Like, direction: Vector3Like, maxDistance = 0.3): number | false => {
-  const ray = world.castRay(new Ray(position, direction), maxDistance, true, QueryFilterFlags.ONLY_FIXED);
+export const castRay = (
+  position: Vector3Like,
+  direction: Vector3Like,
+  filterFlags: QueryFilterFlags,
+  filterPredicate: (collider: RAPIER.Collider) => boolean,
+  maxDistance = 1
+): number | false => {
+  const ray = world.castRay(new Ray(position, direction), maxDistance, true, filterFlags, undefined, undefined, undefined, filterPredicate);
   if (ray) {
     return ray.timeOfImpact;
   }
