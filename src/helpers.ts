@@ -1,6 +1,6 @@
-import RAPIER, { QueryFilterFlags, Ray } from "@dimforge/rapier3d-compat";
+import RAPIER, { QueryFilterFlags, Ray, World } from "@dimforge/rapier3d-compat";
 import { world } from "./Globals";
-import { Quaternion as QuaternionClass, QuaternionLike, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
+import { Euler, Quaternion as QuaternionClass, QuaternionLike, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
 // import { Quaternion as QuaternionClass } from "three";
 
 export function clamp(num: number, min: number, max: number) {
@@ -168,3 +168,85 @@ export const createTimeStats = (name = "Average CPU time", logEverySeconds = 5) 
     },
   };
 };
+
+export function quantizeDirKey(direction: Vector3, rbQuat: Quaternion, stepDeg = 5) {
+  // quantize yaw/pitch from direction, and body Euler from rbQuat (optional)
+  const yaw = Math.round((Math.atan2(direction.y, direction.x) * 180) / Math.PI / stepDeg) * stepDeg;
+  const pitch = Math.round((Math.asin(direction.z) * 180) / Math.PI / stepDeg) * stepDeg;
+  const euler = new Euler().setFromQuaternion(rbQuat, "ZYX"); // choose order you use
+  const rx = Math.round((euler.x * 180) / Math.PI / stepDeg) * stepDeg;
+  const ry = Math.round((euler.y * 180) / Math.PI / stepDeg) * stepDeg;
+  const rz = Math.round((euler.z * 180) / Math.PI / stepDeg) * stepDeg;
+  return `${yaw}_${pitch}_${rx}_${ry}_${rz}`;
+}
+
+export class DragRayCache {
+  cache = new Map<string, { localPoint: Vector3; localNormal: Vector3 }[]>();
+  raysPerUnit: number;
+  maxExtent: number; // how far from center the grid spans in world units
+  constructor(raysPerUnit = 4, maxExtent = 3) {
+    this.raysPerUnit = raysPerUnit;
+    this.maxExtent = maxExtent;
+  }
+
+  // Build cache by casting rays in *world space* using 'direction' (velocity dir),
+  // then converting hits into body-local coords and storing them.
+  buildCacheForKey(
+    key: string,
+    rbTranslation: Vector3,
+    rbQuat: Quaternion,
+    direction: Vector3,
+    world: World,
+    collidersHandles: number[],
+    maxLengthWorld: number
+  ) {
+    const hitsLocal: { localPoint: Vector3; localNormal: Vector3 }[] = [];
+
+    const spacing = 1 / this.raysPerUnit;
+    const worldUp = new Vector3(0, 0, 1);
+
+    // RIGHT and UP for plane perpendicular to 'direction'
+    const right = new Vector3().crossVectors(worldUp, direction);
+    if (right.lengthSq() < 1e-6) right.set(1, 0, 0); // fallback when direction ~ parallel to up
+    right.normalize();
+    const up = new Vector3().crossVectors(direction, right).normalize();
+
+    // anchor point in front of object
+    const posInFront = new Vector3(rbTranslation).add(direction.clone().multiplyScalar(maxLengthWorld));
+
+    // precompute inverse body rotation to map world hits into body-local
+    const rbQuatInv = rbQuat.clone().invert();
+
+    for (let x = -this.maxExtent; x <= this.maxExtent; x += spacing) {
+      for (let y = -this.maxExtent; y <= this.maxExtent; y += spacing) {
+        const worldOrigin = posInFront.clone().add(right.clone().multiplyScalar(x)).add(up.clone().multiplyScalar(y));
+        const ray = new Ray(worldOrigin, direction.clone().negate()); // cast 'backwards' into the ship
+        const hit = world.castRayAndGetNormal(ray, maxLengthWorld * 2, true, QueryFilterFlags.ONLY_DYNAMIC, undefined, undefined, undefined, (coll) =>
+          collidersHandles.includes(coll.handle)
+        );
+        if (!hit) continue;
+
+        const hitPointWorld = ray.pointAt(hit.timeOfImpact);
+        debugRigidBody(hitPointWorld, `hitPointWorld - ${x} - ${y}`);
+        const normalWorld = new Vector3(hit.normal);
+
+        // Convert to body-local coordinates and store that in cache
+        const localPoint = new Vector3(hitPointWorld).sub(rbTranslation).applyQuaternion(rbQuatInv);
+        const localNormal = normalWorld.clone().applyQuaternion(rbQuatInv).normalize();
+
+        hitsLocal.push({ localPoint, localNormal });
+      }
+    }
+
+    this.cache.set(key, hitsLocal);
+    return hitsLocal;
+  }
+
+  getCached(key: string) {
+    return this.cache.get(key);
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+}

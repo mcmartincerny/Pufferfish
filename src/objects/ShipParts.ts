@@ -1,4 +1,4 @@
-import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Vector3 as ThreeVector3, Object3D } from "three";
+import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Vector3 as ThreeVector3, Object3D, Box3 } from "three";
 import { clamp, degToRad, log10000, log50, Quaternion, Vector3 } from "../helpers";
 import { ActiveHooks, ColliderDesc } from "@dimforge/rapier3d-compat";
 import { world, currentDeltaTime } from "../Globals";
@@ -6,6 +6,7 @@ import { createConvexMeshColliderForMesh, PrismGeometry } from "./Shapes";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Ship } from "./Ship";
 import { BetterObject3D } from "./BetterObject3D";
+import { WATER_LINE_Z } from "./Water";
 
 export type ShipPartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
 export type ShipPartInstance = Helm | WoodenBox | WoodenRamp | LeadBox | Propeller | SmallRudder;
@@ -30,6 +31,37 @@ export class ShipPart extends BetterObject3D {
   // Called by Ship after construction to attach physics shape(s)
   attachToShip(ship: Ship) {
     this.ship = ship;
+  }
+
+  // Calculate how much of this part is submerged based on its mesh geometry
+  getPercentageSubmerged(): number {
+    if (!this.ship || !this.mainMesh) return 0;
+
+    // Get the mesh's bounding box in world space
+    const boundingBox = new Box3().setFromObject(this.mainMesh);
+    const size = new Vector3();
+    boundingBox.getSize(size);
+
+    const partCenterWorld = new Vector3();
+    this.mainMesh.getWorldPosition(partCenterWorld);
+
+    // Calculate the top and bottom Z coordinates of the part in world space
+    const halfHeight = Math.max(size.x, size.y, size.z) / 2;
+    const topZ = partCenterWorld.z + halfHeight;
+    const bottomZ = partCenterWorld.z - halfHeight;
+
+    // Calculate submergence percentage based on how much of the part is below water
+    if (topZ <= WATER_LINE_Z) {
+      // Entirely submerged
+      return 1.0;
+    } else if (bottomZ >= WATER_LINE_Z) {
+      // Entirely above water
+      return 0.0;
+    } else {
+      // Partially submerged
+      const submergedHeight = WATER_LINE_Z - bottomZ;
+      return clamp(submergedHeight / size.z, 0, 1);
+    }
   }
 }
 
@@ -157,7 +189,7 @@ export class ThrustingPart extends ShipPart {
     const partWorldRot = new Quaternion(shipRot).multiply(this.buildRotation);
     const point = new Vector3(this.localTranslation).add(this.thrustPositionRelativeToPart).applyQuaternion(partWorldRot).add(shipPos);
     let impulseLength = totalThrustForce;
-    const submerged = this.ship.percentageSubmerged;
+    const submerged = this.getPercentageSubmerged();
     if (this.needsWater && submerged < 1) {
       impulseLength = totalThrustForce * submerged;
     }
@@ -170,7 +202,7 @@ export class ThrustingPart extends ShipPart {
 }
 
 export class Propeller extends ThrustingPart {
-  thrustForce = 3;
+  thrustForce = 2;
   density = 3;
 
   constructor({ rotation, translation }: ShipPartProps) {
@@ -268,7 +300,7 @@ export class RudderPart extends ShipPart {
     }
 
     // Magnitude scales with submerged %, turning strength, forward speed component, and rudder deflection
-    const magnitude = (this.ship?.percentageSubmerged ?? 0) * this.turningStrength * speedAlongForward * Math.abs(Math.sin(this.currentAngleRad));
+    const magnitude = this.getPercentageSubmerged() * this.turningStrength * speedAlongForward * Math.abs(Math.sin(this.currentAngleRad));
     if (magnitude <= 0) return;
 
     // Get center of mass and rudder application point
@@ -290,7 +322,7 @@ export class RudderPart extends ShipPart {
 
 export class SmallRudder extends RudderPart {
   rotationSpeedRadPerSec = degToRad(80);
-  turningStrength = 1.0;
+  turningStrength = 0.25;
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
   constructor(props: ShipPartProps) {

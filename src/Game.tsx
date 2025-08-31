@@ -191,19 +191,19 @@ const init = (mapGenerationData: MapGenerationData) => {
   const cube = new Mesh(cubeGeometry, cubeMaterial);
   const cubeRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(6.0, 0.0, 5.0));
   const cubeCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(1, 1, 1).setTranslation(0.0, 0.0, 0.0), cubeRigidBody);
-  cubeCollider.setRestitution(0.8);
+  cubeCollider.setRestitution(0);
   const cubeObject = new BuoyantObject();
   cubeObject.add(cube);
   cubeObject.rigidBody = cubeRigidBody;
   scene.add(cubeObject);
   cubeObject.init();
 
-  const cubeGrayGeometry = new BoxGeometry(1, 1, 1);
+  const cubeGrayGeometry = new BoxGeometry(1.5, 1.5, 1.5);
   const cubeGray = new MeshStandardMaterial({ color: 0xcccccc });
   const cube2 = new Mesh(cubeGrayGeometry, cubeGray);
   const cube2RigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-4.0, -1.0, 5.0));
-  const cube2Collider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), cube2RigidBody);
-  cube2Collider.setRestitution(0.8);
+  const cube2Collider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.75, 0.75, 0.75).setTranslation(0.0, 0.0, 0.0), cube2RigidBody);
+  cube2Collider.setRestitution(0);
   const cube2Object = new BuoyantObject();
   cube2Object.add(cube2);
   cube2Object.rigidBody = cube2RigidBody;

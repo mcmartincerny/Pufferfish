@@ -128,6 +128,10 @@ export const shipLegend = {
     part: SmallRudder,
     rotation: new Euler(degToRad(0), degToRad(0), degToRad(0)),
   },
+  Q: {
+    part: SmallRudder,
+    rotation: new Euler(degToRad(0), degToRad(90), degToRad(0)),
+  },
 };
 
 // next to each other means equal any two of X, Y or Z and the third one is different exactly by 1

@@ -74,6 +74,7 @@ const fastRampShipDesign = [
     "◢■L■◣",
     "■■■■■",
     "TRTRT",
+    "Q Q Q",
   ],
   [
     "     ",
