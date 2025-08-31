@@ -20,6 +20,7 @@ export class RapierDebugRenderer {
       this.mesh.geometry.setAttribute("position", new BufferAttribute(vertices, 3));
       this.mesh.geometry.setAttribute("color", new BufferAttribute(colors, 4));
       this.mesh.visible = this.visible;
+      (window as any).snapshot = this.world.takeSnapshot();
     } else {
       this.mesh.visible = this.visible;
     }

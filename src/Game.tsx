@@ -43,7 +43,6 @@ import { BuoyantObject } from "./objects/BuoyantObject.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
 import { ShipPlayer } from "./objects/ShipPlayer.ts";
-import { Terrain } from "./terrain/terrain.ts";
 import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
 import { MainMenu } from "./ui/MainMenu.tsx";
 import { MapGenerationData } from "./ui/NewMap.tsx";

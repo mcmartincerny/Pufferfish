@@ -5,6 +5,7 @@ import { world, currentDeltaTime } from "../Globals";
 import { createConvexMeshColliderForMesh, PrismGeometry } from "./Shapes";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Ship } from "./Ship";
+import { BetterObject3D } from "./BetterObject3D";
 
 export type ShipPartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
 export type ShipPartInstance = Helm | WoodenBox | WoodenRamp | LeadBox | Propeller | SmallRudder;
@@ -13,11 +14,10 @@ export type ShipPartProps = {
   rotation: Quaternion;
   translation: Vector3;
 };
-export class ShipPart extends Object3D {
+export class ShipPart extends BetterObject3D {
   buildRotation: Quaternion;
   localTranslation: Vector3 = new Vector3(0, 0, 0);
   ship?: Ship;
-  mainMesh?: Mesh;
   constructor({ rotation, translation }: ShipPartProps) {
     super();
     this.buildRotation = rotation;
@@ -97,7 +97,6 @@ export class WoodenRamp extends ShipPart {
     const halfWidth = 1 / 2;
     const halfHeight = 1 / 2;
     prismGeometry.translate(-halfLength, halfWidth, -halfHeight);
-    prismGeometry.applyQuaternion(this.buildRotation);
     const prismMaterial = new MeshPhongMaterial({ color: 0x44aa88 });
     const prism = new Mesh(prismGeometry, prismMaterial);
     this.mainMesh = prism;
@@ -107,16 +106,9 @@ export class WoodenRamp extends ShipPart {
   attachToShip(ship: Ship) {
     this.ship = ship;
     const rb = ship.rigidBody;
-    // Create a convex mesh collider that already has the part's local rotation baked in
-    const localGeom = new PrismGeometry({ length: 1, width: 1, height: 1 });
-    const halfLength = 1 / 2;
-    const halfWidth = 1 / 2;
-    const halfHeight = 1 / 2;
-    localGeom.translate(-halfLength, halfWidth, -halfHeight);
-    localGeom.applyQuaternion(this.buildRotation);
-    const tempMesh = new Mesh(localGeom, new MeshPhongMaterial());
-    const desc = createConvexMeshColliderForMesh(tempMesh);
+    const desc = createConvexMeshColliderForMesh(this.mainMesh!);
     desc.setTranslation(this.localTranslation.x, this.localTranslation.y, this.localTranslation.z);
+    desc.setRotation(this.buildRotation);
     const collider = world.createCollider(desc, rb);
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
@@ -292,7 +284,7 @@ export class RudderPart extends ShipPart {
 
 export class SmallRudder extends RudderPart {
   rotationSpeedRadPerSec = degToRad(80);
-  turningStrength = 0.1;
+  turningStrength = 0.5;
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
   constructor(props: ShipPartProps) {

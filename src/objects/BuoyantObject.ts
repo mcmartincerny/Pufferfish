@@ -1,10 +1,12 @@
 import { QueryFilterFlags, Ray, RigidBody } from "@dimforge/rapier3d-compat";
-import { clamp, debugRigidBody, log10000, log50, Vector3 } from "../helpers";
+import { clamp, debugRigidBody, degToRad, log10000, log50, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
-import { world } from "../Globals";
+import { currentDeltaTime, world } from "../Globals";
+import { Ship } from "./Ship";
+import { Euler } from "three";
 
-const BUOYANCY_FACTOR = 0.2;
+const BUOYANCY_FACTOR = 33;
 const HORIZONTAL_DRAG_FACTOR = 0.01; // Reduced for ships to move fast horizontally
 const VERTICAL_DRAG_FACTOR = 0.04; // Higher to reduce bouncing
 const OBJECT_SIZE = 1;
@@ -26,6 +28,8 @@ export class BuoyantObject extends BetterObject3D {
     const numColliders = this.rigidBody?.numColliders();
     if (!this.rigidBody || !numColliders || numColliders === 0) return;
 
+    const velocity = new Vector3(this.rigidBody.linvel());
+
     const percentageSubmergedPerCollider = []; // TODO: calculate submerged volume using raycasting from the bottom of the object
     for (let i = 0; i < numColliders; i++) {
       const collider = this.rigidBody.collider(i);
@@ -43,18 +47,10 @@ export class BuoyantObject extends BetterObject3D {
         // Drag
         // TODO: Calculate drag based on cross section of the object moving through the water
         // TODO: Maybe casting a bunch of rays from the direction of the velocity and getting the average of the submerged amount
-        const velocity = new Vector3(this.rigidBody.linvel());
 
-        const horizontalVelocity = new Vector3(velocity.x, velocity.y, 0);
-        const verticalVelocity = new Vector3(0, 0, velocity.z);
+        const buoyantForceWithDelta = buoyantForce.clone().multiplyScalar(currentDeltaTime * 0.001);
 
-        const horizontalDragForce = horizontalVelocity.multiplyScalar(-HORIZONTAL_DRAG_FACTOR * volume * percentageSubmerged);
-        const verticalDragForce = verticalVelocity.multiplyScalar(-VERTICAL_DRAG_FACTOR * volume * percentageSubmerged);
-
-        const totalDragForce = horizontalDragForce.add(verticalDragForce);
-
-        const allForces = new Vector3(0, 0, 0).add(buoyantForce).add(totalDragForce);
-        this.rigidBody.applyImpulseAtPoint(allForces, collider.translation(), true);
+        this.rigidBody.applyImpulseAtPoint(buoyantForceWithDelta, collider.translation(), true);
 
         // Angular damping
         const angularDampingForce = new Vector3(this.rigidBody.angvel()).multiplyScalar(-ANGULAR_DAMPING * volume * percentageSubmerged);
@@ -62,16 +58,32 @@ export class BuoyantObject extends BetterObject3D {
       }
     }
     this.percentageSubmerged = percentageSubmergedPerCollider.reduce((a, b) => a + b, 0) / percentageSubmergedPerCollider.length;
-    this.simulateDragInDirectionUsingRaycasting();
+
+    if (velocity.length() > 0.5) {
+      if (this instanceof Ship) {
+        // TODO: Remove this in the future
+        // console.time("simulateDragInDirectionUsingRaycasting");
+        this.simulateDragInDirectionUsingRaycasting();
+        // console.timeEnd("simulateDragInDirectionUsingRaycasting");
+      } else {
+        this.rigidBody.setLinearDamping(1);
+      }
+    }
   }
+
+  DENSITY_OF_WATER = 1025; // kg/m^3 (sea water)
+  DENSITY_OF_AIR_REAL = 1.225; // kg/m^3 (air)
+  ARTIFICAL_AIR_DENSITY_MULTIPLIER = 10;
+  DENSITY_OF_AIR = this.DENSITY_OF_AIR_REAL * this.ARTIFICAL_AIR_DENSITY_MULTIPLIER;
+  CN = 0.001; // normal pressure coefficient (tune)
 
   simulateDragInDirectionUsingRaycasting() {
     if (!this.rigidBody) return 0;
-    const rg = this.rigidBody;
-    const velocity = new Vector3(rg.linvel());
-    const direction = velocity.normalize();
-    const numColliders = rg.numColliders();
-    const colliders = new Array(numColliders).fill(0).map((_, i) => rg.collider(i)!);
+    const rb = this.rigidBody;
+    const velocity = new Vector3(rb.linvel());
+    const direction = velocity.clone().normalize();
+    const numColliders = rb.numColliders();
+    const colliders = new Array(numColliders).fill(0).map((_, i) => rb.collider(i)!);
     const collidersHandles = colliders.map((c) => c.handle);
     let maxLengthFromCenter = 0;
     // calculate the furthest point from the center of the rigid body
@@ -81,23 +93,65 @@ export class BuoyantObject extends BetterObject3D {
         log10000("Collider has no size - probably a ramp part");
         halfSize = new Vector3(0.5, 0.5, 0.5);
       }
-      const distanceFromCenter = new Vector3(collider.translation()).distanceTo(rg.translation()) + halfSize.length();
+      const distanceFromCenter = new Vector3(collider.translation()).distanceTo(rb.translation()) + halfSize.length();
       if (distanceFromCenter > maxLengthFromCenter) {
         maxLengthFromCenter = distanceFromCenter;
       }
     }
-    maxLengthFromCenter += 1; // safety margin
-    const rayPosition = new Vector3(rg.translation()).add(new Vector3(direction).multiplyScalar(maxLengthFromCenter));
-    const ray = new Ray(rayPosition, direction.clone().negate());
-    const hit = world.castRayAndGetNormal(ray, maxLengthFromCenter, true, QueryFilterFlags.ONLY_DYNAMIC, undefined, undefined, undefined, (coll) =>
-      collidersHandles.includes(coll.handle)
-    );
-    if (hit) {
-      const hitPoint = ray.pointAt(hit.timeOfImpact);
-      console.log("hitPoint", hitPoint);
-      debugRigidBody(hitPoint, "hitPoint" + hit.collider.handle);
+    maxLengthFromCenter = Math.round(maxLengthFromCenter + 1); // safety margin
 
-      // Continue here. Need to get the direction of the normal, visualize it and test if it works and then do it in a grid of 20 x 20 rays or more.
+    const worldUp = new Vector3(0, 0, 1);
+    let right = new Vector3().crossVectors(worldUp, direction);
+    if (right.lengthSq() < 1e-6) {
+      // Forward is parallel to worldUp, pick arbitrary right
+      right = new Vector3(1, 0, 0);
+    }
+    right.normalize();
+
+    const up = new Vector3().crossVectors(direction, right).normalize();
+
+    const raysPer1Unit = 1;
+    const spacing = 1 / raysPer1Unit;
+    const areaSize = spacing * spacing;
+    for (let xOffset = -maxLengthFromCenter; xOffset <= maxLengthFromCenter; xOffset += spacing) {
+      for (let yOffset = -maxLengthFromCenter; yOffset <= maxLengthFromCenter; yOffset += spacing) {
+        const posInFrontOfObject = new Vector3(rb.translation()).add(direction.clone().multiplyScalar(maxLengthFromCenter));
+        const rayPosition = new Vector3(posInFrontOfObject).add(right.clone().multiplyScalar(xOffset)).add(up.clone().multiplyScalar(yOffset));
+
+        debugRigidBody(rayPosition, `rayPosition - ${xOffset} - ${yOffset}`);
+        const ray = new Ray(rayPosition, direction.clone().negate());
+        const hit = world.castRayAndGetNormal(ray, maxLengthFromCenter * 2, true, QueryFilterFlags.ONLY_DYNAMIC, undefined, undefined, undefined, (coll) =>
+          collidersHandles.includes(coll.handle)
+        );
+        if (hit) {
+          const hitPoint = ray.pointAt(hit.timeOfImpact);
+          debugRigidBody(hitPoint, `hitPoint - ${xOffset} - ${yOffset}`, undefined, 0.3);
+          const normal = new Vector3(hit.normal);
+
+          // Velocity of the body at the world point with angular contribution
+          const omega = new Vector3(rb.angvel());
+          const hitPointOffsetFromCenter = new Vector3(hitPoint).sub(new Vector3(rb.translation()));
+          // Add angular contribution: ω × r
+          const pointVel = velocity.clone().add(omega.clone().cross(hitPointOffsetFromCenter));
+
+          // Pick the normal that faces the incoming flow
+          const nImp = pointVel.dot(normal) < 0 ? normal.clone() : normal.clone().negate();
+
+          // Normal component of relative speed (positive when flowing into the surface)
+          const vRelN = -pointVel.dot(nImp);
+          const vRelNPos = Math.max(0, vRelN);
+
+          const isHitPointInAir = hitPoint.z > WATER_LINE_Z;
+          const density = isHitPointInAir ? this.DENSITY_OF_AIR : this.DENSITY_OF_WATER;
+          // Simple quadratic “pressure” term along the normal
+          const pressureMag = 0.5 * density * this.CN * areaSize * vRelNPos * vRelNPos;
+          const force = nImp.clone().multiplyScalar(pressureMag);
+
+          // Convert to impulse for this step and apply at the hit point
+          const impulse = force.clone().multiplyScalar(currentDeltaTime * 0.001);
+          rb.applyImpulseAtPoint(impulse, hitPoint, true);
+        }
+      }
     }
   }
 }

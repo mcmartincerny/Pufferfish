@@ -62,6 +62,44 @@ export const fastShipDesign = [
     ],
   ];
 
+const fastRampShipDesign = [
+  [
+    "   ",
+    "   ",
+    "VVV",
+    "■L■",
+    "■L■",
+    "■L■",
+    "■L■",
+    "◢■L■◣",
+    "          ■■■■■■■■■■■■■■L",
+    "TRTRT",
+  ],
+  [
+    "     ",
+    "VVVVV",
+    "■■ ■■", 
+    "■■ ■■", 
+    "■■ ■■", 
+    "■■ ■■", 
+    "■■■■■", 
+    "■■■■■", 
+    "◥■■■◤",
+  ],
+  [
+    "VVVVV", 
+    "■   ■", 
+    "■   ■", 
+    "■   ■", 
+    "■   ■", 
+    "■   ■", 
+    "■ H ■", 
+    "■   ■", 
+    "◥■■■◤"
+  ]
+]
+
+
   export const weirdShipDesign = [
     [
       "◢■◣", 
@@ -250,7 +288,7 @@ export const BigShipDesign = [
   ],
 ];
 
-export const shipDesign = fastShipDesign; 
+export const shipDesign = fastRampShipDesign; 
 
 /**
  * performance testing - average CPU: 

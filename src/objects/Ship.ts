@@ -23,7 +23,7 @@ export class Ship extends BuoyantObject {
       const rotationQuaternion = new Quaternion().setFromEuler(rotation);
       // Create part with LOCAL transform relative to the ship's origin
       const instance = new Part({ rotation: rotationQuaternion, translation: partPosition });
-      instance.mainMesh!.setRotationFromQuaternion(rotationQuaternion.invert());
+      // instance.mainMesh!.setRotationFromQuaternion(rotationQuaternion.invert());
       // Attach colliders to the ship's single rigid body
       instance.attachToShip(this);
       this.parts.push(instance);
@@ -107,6 +107,10 @@ export const shipLegend = {
   "◤": {
     part: WoodenRamp,
     rotation: new Euler(0, degToRad(90), degToRad(90)),
+  },
+  V: {
+    part: WoodenRamp,
+    rotation: new Euler(degToRad(180), 0, degToRad(90)),
   },
   H: {
     part: Helm,
