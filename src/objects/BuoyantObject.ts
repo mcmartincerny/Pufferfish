@@ -1,10 +1,10 @@
-import { QueryFilterFlags, Ray, RigidBody } from "@dimforge/rapier3d-compat";
+import { Collider, QueryFilterFlags, Ray, RigidBody } from "@dimforge/rapier3d-compat";
 import { clamp, createTimeStats, debugRigidBody, degToRad, log10000, log50, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 import { currentDeltaTime, world } from "../Globals";
 import { Ship } from "./Ship";
-import { Euler } from "three";
+import { Euler, Vector3Like } from "three";
 
 const BUOYANCY_FACTOR = 33;
 const HORIZONTAL_DRAG_FACTOR = 0.01; // Reduced for ships to move fast horizontally
@@ -77,16 +77,48 @@ export class BuoyantObject extends BetterObject3D {
   ARTIFICAL_AIR_DENSITY_MULTIPLIER = 10;
   DENSITY_OF_AIR = this.DENSITY_OF_AIR_REAL * this.ARTIFICAL_AIR_DENSITY_MULTIPLIER;
   CN = 0.004; // normal pressure coefficient (tune)
+  raysPerUnit = 1;
 
   simulateDragInDirectionUsingRaycasting() {
-    if (!this.rigidBody) return 0;
+    if (!this.rigidBody) return;
     const rb = this.rigidBody;
     const velocity = new Vector3(rb.linvel());
-    const direction = velocity.clone().normalize();
+    const angularVelocity = new Vector3(rb.angvel());
     const numColliders = rb.numColliders();
     const colliders = new Array(numColliders).fill(0).map((_, i) => rb.collider(i)!);
+    const rbTranslation = new Vector3(rb.translation());
+
+    const impulsesAndPoints = this.simulateDragInDirectionUsingRaycastingPure({
+      velocity,
+      angularVelocity,
+      colliders,
+      rbTranslation,
+      deltaTime: currentDeltaTime,
+    });
+
+    // Apply all impulses
+    for (const { impulse, point } of impulsesAndPoints) {
+      rb.applyImpulseAtPoint(impulse, point, true);
+    }
+  }
+
+  simulateDragInDirectionUsingRaycastingPure({
+    velocity,
+    angularVelocity,
+    colliders,
+    rbTranslation,
+    deltaTime = currentDeltaTime,
+  }: {
+    velocity: Vector3;
+    angularVelocity: Vector3;
+    colliders: Collider[];
+    rbTranslation: Vector3;
+    deltaTime: number;
+  }): { impulse: Vector3; point: Vector3Like }[] {
+    const direction = velocity.clone().normalize();
     const collidersHandles = colliders.map((c) => c.handle);
     let maxLengthFromCenter = 0;
+
     // calculate the furthest point from the center of the rigid body
     for (const collider of colliders) {
       let halfSize = new Vector3(collider.halfExtents() ?? collider.halfHeight() ?? collider.radius());
@@ -94,7 +126,7 @@ export class BuoyantObject extends BetterObject3D {
         log10000("Collider has no size - probably a ramp part");
         halfSize = new Vector3(0.5, 0.5, 0.5);
       }
-      const distanceFromCenter = new Vector3(collider.translation()).distanceTo(rb.translation()) + halfSize.length();
+      const distanceFromCenter = new Vector3(collider.translation()).distanceTo(rbTranslation) + halfSize.length();
       if (distanceFromCenter > maxLengthFromCenter) {
         maxLengthFromCenter = distanceFromCenter;
       }
@@ -111,12 +143,13 @@ export class BuoyantObject extends BetterObject3D {
 
     const up = new Vector3().crossVectors(direction, right).normalize();
 
-    const raysPer1Unit = 1;
-    const spacing = 1 / raysPer1Unit;
+    const spacing = 1 / this.raysPerUnit;
     const areaSize = spacing * spacing;
+    const impulsesAndPoints: { impulse: Vector3; point: Vector3Like }[] = [];
+
     for (let xOffset = -maxLengthFromCenter; xOffset <= maxLengthFromCenter; xOffset += spacing) {
       for (let yOffset = -maxLengthFromCenter; yOffset <= maxLengthFromCenter; yOffset += spacing) {
-        const posInFrontOfObject = new Vector3(rb.translation()).add(direction.clone().multiplyScalar(maxLengthFromCenter));
+        const posInFrontOfObject = new Vector3(rbTranslation).add(direction.clone().multiplyScalar(maxLengthFromCenter));
         const rayPosition = new Vector3(posInFrontOfObject).add(right.clone().multiplyScalar(xOffset)).add(up.clone().multiplyScalar(yOffset));
 
         debugRigidBody(rayPosition, `rayPosition - ${xOffset} - ${yOffset}`);
@@ -130,10 +163,9 @@ export class BuoyantObject extends BetterObject3D {
           const normal = new Vector3(hit.normal);
 
           // Velocity of the body at the world point with angular contribution
-          const omega = new Vector3(rb.angvel());
-          const hitPointOffsetFromCenter = new Vector3(hitPoint).sub(new Vector3(rb.translation()));
+          const hitPointOffsetFromCenter = new Vector3(hitPoint).sub(rbTranslation);
           // Add angular contribution: ω × r
-          const pointVel = velocity.clone().add(omega.clone().cross(hitPointOffsetFromCenter));
+          const pointVel = velocity.clone().add(angularVelocity.clone().cross(hitPointOffsetFromCenter));
 
           // Pick the normal that faces the incoming flow
           const nImp = pointVel.dot(normal) < 0 ? normal.clone() : normal.clone().negate();
@@ -144,16 +176,18 @@ export class BuoyantObject extends BetterObject3D {
 
           const isHitPointInAir = hitPoint.z > WATER_LINE_Z;
           const density = isHitPointInAir ? this.DENSITY_OF_AIR : this.DENSITY_OF_WATER;
-          // Simple quadratic “pressure” term along the normal
+          // Simple quadratic "pressure" term along the normal
           const pressureMag = 0.5 * density * this.CN * areaSize * vRelNPos * vRelNPos;
           const force = nImp.clone().multiplyScalar(pressureMag);
 
-          // Convert to impulse for this step and apply at the hit point
-          const impulse = force.clone().multiplyScalar(currentDeltaTime * 0.001);
-          rb.applyImpulseAtPoint(impulse, hitPoint, true);
+          // Convert to impulse for this step
+          const impulse = force.clone().multiplyScalar(deltaTime * 0.001);
+          impulsesAndPoints.push({ impulse, point: hitPoint });
         }
       }
     }
+
+    return impulsesAndPoints;
   }
 }
 
