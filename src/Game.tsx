@@ -30,7 +30,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { MAP_GENERATION_DATA_DEFAULT, setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { resetDebugRigidBodies, Vector3 } from "./helpers";
+import { createTimeStats, resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -245,7 +245,7 @@ const init = (mapGenerationData: MapGenerationData) => {
     .setValue(cameraSwitcher.type)
     .onChange((type: CameraType) => cameraSwitcher.switchCamera(type));
 
-  const cpuTimeStats = createCpuTimeStats();
+  const cpuTimeStats = createTimeStats();
 
   let running = true;
   let previousTime: number;
@@ -299,38 +299,6 @@ function traverseObjects(obj: Object3D, callback: (obj: Object3D) => void) {
     }
   }
 }
-
-const createCpuTimeStats = () => {
-  // returns 2 functions that will be called when start and end of the measurement
-  // it will create variables to track time in the last 10 seconds and will add to them
-  // after a few seconds it will console.log the average and reset the variables
-  let startTime = 0;
-  let time = 0;
-  let count = 0;
-  let measurementStart = 0;
-  let longestTime = 0;
-  return {
-    start: () => {
-      measurementStart = performance.now();
-    },
-    end: () => {
-      count++;
-      const currentTime = performance.now();
-      time += currentTime - measurementStart;
-      longestTime = Math.max(longestTime, currentTime - measurementStart);
-      if (startTime === 0) {
-        startTime = currentTime;
-      }
-      if (startTime + 5000 < currentTime) {
-        console.log(`Average CPU time: ${(time / count).toFixed(2)}ms, longest: ${longestTime.toFixed(2)}ms`);
-        startTime = currentTime;
-        time = 0;
-        count = 0;
-        longestTime = 0;
-      }
-    },
-  };
-};
 
 let previousAspectRatio = 0;
 

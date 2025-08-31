@@ -136,3 +136,35 @@ export const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve,
 export const isVector2 = (value: any): value is Vector2 => {
   return value.isVector2;
 };
+
+export const createTimeStats = (name = "Average CPU time", logEverySeconds = 5) => {
+  // returns 2 functions that will be called when start and end of the measurement
+  // it will create variables to track time in the last 10 seconds and will add to them
+  // after a few seconds it will console.log the average and reset the variables
+  let startTime = 0;
+  let time = 0;
+  let count = 0;
+  let measurementStart = 0;
+  let longestTime = 0;
+  return {
+    start: () => {
+      measurementStart = performance.now();
+    },
+    end: () => {
+      count++;
+      const currentTime = performance.now();
+      time += currentTime - measurementStart;
+      longestTime = Math.max(longestTime, currentTime - measurementStart);
+      if (startTime === 0) {
+        startTime = currentTime;
+      }
+      if (startTime + logEverySeconds * 1000 < currentTime) {
+        console.log(`${name}: ${(time / count).toFixed(2)}ms, longest: ${longestTime.toFixed(2)}ms`);
+        startTime = currentTime;
+        time = 0;
+        count = 0;
+        longestTime = 0;
+      }
+    },
+  };
+};

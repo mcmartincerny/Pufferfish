@@ -1,5 +1,5 @@
 import { QueryFilterFlags, Ray, RigidBody } from "@dimforge/rapier3d-compat";
-import { clamp, debugRigidBody, degToRad, log10000, log50, Vector3 } from "../helpers";
+import { clamp, createTimeStats, debugRigidBody, degToRad, log10000, log50, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 import { currentDeltaTime, world } from "../Globals";
@@ -62,20 +62,21 @@ export class BuoyantObject extends BetterObject3D {
     if (velocity.length() > 0.5) {
       if (this instanceof Ship) {
         // TODO: Remove this in the future
-        // console.time("simulateDragInDirectionUsingRaycasting");
+        this.stats.start();
         this.simulateDragInDirectionUsingRaycasting();
-        // console.timeEnd("simulateDragInDirectionUsingRaycasting");
+        this.stats.end();
       } else {
         this.rigidBody.setLinearDamping(1);
       }
     }
   }
+  stats = createTimeStats("Raycasting drag time", 1);
 
   DENSITY_OF_WATER = 1025; // kg/m^3 (sea water)
   DENSITY_OF_AIR_REAL = 1.225; // kg/m^3 (air)
   ARTIFICAL_AIR_DENSITY_MULTIPLIER = 10;
   DENSITY_OF_AIR = this.DENSITY_OF_AIR_REAL * this.ARTIFICAL_AIR_DENSITY_MULTIPLIER;
-  CN = 0.001; // normal pressure coefficient (tune)
+  CN = 0.004; // normal pressure coefficient (tune)
 
   simulateDragInDirectionUsingRaycasting() {
     if (!this.rigidBody) return 0;

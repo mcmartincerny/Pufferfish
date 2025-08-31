@@ -1,5 +1,5 @@
 import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Vector3 as ThreeVector3, Object3D } from "three";
-import { clamp, degToRad, Quaternion, Vector3 } from "../helpers";
+import { clamp, degToRad, log10000, log50, Quaternion, Vector3 } from "../helpers";
 import { ActiveHooks, ColliderDesc } from "@dimforge/rapier3d-compat";
 import { world, currentDeltaTime } from "../Globals";
 import { createConvexMeshColliderForMesh, PrismGeometry } from "./Shapes";
@@ -210,7 +210,7 @@ export class RudderPart extends ShipPart {
   // Where to apply the hydrodynamic force relative to the part
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
   // Fraction of turning force applied as longitudinal drag
-  dragFraction = 0.3;
+  dragFraction = 1;
 
   constructor({ rotation, translation }: ShipPartProps) {
     super({ rotation, translation });
@@ -248,7 +248,7 @@ export class RudderPart extends ShipPart {
     const localForward = new Vector3(0, 1, 0);
     const localRight = new Vector3(-1, 0, 0);
     const forwardWorld = new Vector3(localForward).applyQuaternion(partRotation).normalize();
-    const rightWorld = new Vector3(localRight).applyQuaternion(partRotation);
+    const rightWorld = new Vector3(localRight).applyQuaternion(partRotation).normalize();
 
     // Use only speed along part's actual forward direction (3D)
     const speedForwardSigned = vel.dot(forwardWorld);
@@ -271,20 +271,26 @@ export class RudderPart extends ShipPart {
     const magnitude = (this.ship?.percentageSubmerged ?? 0) * this.turningStrength * speedAlongForward * Math.abs(Math.sin(this.currentAngleRad));
     if (magnitude <= 0) return;
 
-    // Application point (approximate; consistent with thrust implementation)
-    const point = new Vector3(this.localTranslation).add(this.forcePositionRelativeToPart).applyQuaternion(partRotation).add(new Vector3(rb.translation()));
+    // Get center of mass and rudder application point
+    const com = new Vector3(rb.worldCom());
+    const rudderPoint = new Vector3(this.localTranslation)
+      .add(this.forcePositionRelativeToPart)
+      .applyQuaternion(partRotation)
+      .add(new Vector3(rb.translation()));
 
-    // Turning impulse
-    const turningImpulse = lateralDir.clone().multiplyScalar(magnitude);
-    rb.applyImpulseAtPoint(turningImpulse, point, true);
+    // Calculate lever arm (vector from COM to rudder point)
+    const leverArm = rudderPoint.clone().sub(com);
 
-    // Optional drag could be added here if needed
+    // Turning torque: τ = r × F where r is lever arm, F is turning force
+    const turningForce = lateralDir.clone().multiplyScalar(magnitude);
+    const turningTorque = new Vector3().crossVectors(leverArm, turningForce);
+    rb.applyTorqueImpulse(turningTorque, true);
   }
 }
 
 export class SmallRudder extends RudderPart {
   rotationSpeedRadPerSec = degToRad(80);
-  turningStrength = 0.5;
+  turningStrength = 1.0;
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
   constructor(props: ShipPartProps) {
