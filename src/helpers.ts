@@ -1,6 +1,6 @@
 import RAPIER, { QueryFilterFlags, Ray, World } from "@dimforge/rapier3d-compat";
 import { world } from "./Globals";
-import { Euler, Quaternion as QuaternionClass, QuaternionLike, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
+import { Euler, Mesh, Quaternion as QuaternionClass, QuaternionLike, Scene, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
 // import { Quaternion as QuaternionClass } from "three";
 
 export function clamp(num: number, min: number, max: number) {
@@ -249,4 +249,42 @@ export class DragRayCache {
   clear() {
     this.cache.clear();
   }
+}
+
+export function destroySceneObjects(scene: Scene) {
+  scene.traverse((object) => {
+    console.log("disposing", object);
+    if (hasDispose(object)) {
+      object.dispose(false);
+    }
+
+    if (!isMesh(object)) return;
+
+    // Dispose of geometries
+    if (object.geometry) {
+      object.geometry.dispose();
+    }
+
+    // Dispose of materials
+    if (object.material) {
+      if (Array.isArray(object.material)) {
+        object.material.forEach((material) => material.dispose());
+      } else {
+        object.material.dispose();
+      }
+    }
+  });
+
+  // Remove objects from the scene
+  while (scene.children.length > 0) {
+    scene.remove(scene.children[0]);
+  }
+}
+
+function hasDispose(object: any): object is { dispose: (...args: any) => void } {
+  return object && object.dispose;
+}
+
+function isMesh(object: any): object is Mesh {
+  return object && object.isMesh;
 }

@@ -9,7 +9,7 @@ import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 
 export type ShipPartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
-export type ShipPartInstance = Helm | WoodenBox | WoodenRamp | LeadBox | Propeller | SmallRudder;
+export type ShipPartInstance = InstanceType<ShipPartConstructor>;
 
 export type ShipPartProps = {
   rotation: Quaternion;
@@ -19,6 +19,11 @@ export class ShipPart extends BetterObject3D {
   buildRotation: Quaternion;
   localTranslation: Vector3 = new Vector3(0, 0, 0);
   ship?: Ship;
+
+  // Static properties that subclasses must define
+  static getPartInfo(): ShipPartInfo {
+    throw new Error("Subclasses must implement getPartInfo()");
+  }
   constructor({ rotation, translation }: ShipPartProps) {
     super();
     this.buildRotation = rotation;
@@ -66,6 +71,18 @@ export class ShipPart extends BetterObject3D {
 }
 
 export class Helm extends ShipPart {
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "helm",
+      name: "Helm",
+      category: "Controls",
+      description: "Ship steering wheel is the main part of your ship. You can place only one helm on your ship.",
+      price: 45,
+      weight: 8.5,
+      constructor: Helm,
+    };
+  }
+
   constructor(props: ShipPartProps) {
     super({ rotation: props.rotation, translation: props.translation });
     const geometry = new BoxGeometry(0.8, 0.2, 0.9);
@@ -95,6 +112,18 @@ export class Helm extends ShipPart {
 }
 
 export class WoodenBox extends ShipPart {
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "wooden-box",
+      name: "Wooden Box",
+      category: "Structural",
+      description: "Basic wooden structural component. Provides buoyancy and structural integrity.",
+      price: 15,
+      weight: 12.0,
+      constructor: WoodenBox,
+    };
+  }
+
   constructor(props: ShipPartProps) {
     super({ rotation: props.rotation, translation: props.translation });
     const geometry = new BoxGeometry(1, 1, 1);
@@ -120,6 +149,18 @@ export class WoodenBox extends ShipPart {
 }
 
 export class WoodenRamp extends ShipPart {
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "wooden-ramp",
+      name: "Wooden Ramp",
+      category: "Structural",
+      description: "Sloped wooden ramp for creating inclines or vehicle access. Great for building docks.",
+      price: 22,
+      weight: 18.0,
+      constructor: WoodenRamp,
+    };
+  }
+
   constructor({ rotation, translation }: ShipPartProps) {
     super({ rotation: rotation, translation: translation });
     // Build visual prism geometry in local space, rotated accordingly
@@ -149,6 +190,18 @@ export class WoodenRamp extends ShipPart {
 }
 
 export class LeadBox extends WoodenBox {
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "lead-box",
+      name: "Lead Box",
+      category: "Structural",
+      description: "Heavy lead-weighted box for ballast. Increases stability but adds significant weight.",
+      price: 35,
+      weight: 85.0,
+      constructor: LeadBox,
+    };
+  }
+
   constructor(props: ShipPartProps) {
     super(props);
     const material = new MeshPhongMaterial({ color: 0x999999 });
@@ -204,6 +257,18 @@ export class ThrustingPart extends ShipPart {
 export class Propeller extends ThrustingPart {
   thrustForce = 2;
   density = 3;
+
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "propeller",
+      name: "Propeller",
+      category: "Propulsion",
+      description: "Water propulsion system for ship movement. Requires submersion to function effectively.",
+      price: 65,
+      weight: 15.0,
+      constructor: Propeller,
+    };
+  }
 
   constructor({ rotation, translation }: ShipPartProps) {
     super({ rotation: rotation, translation: translation });
@@ -325,6 +390,18 @@ export class SmallRudder extends RudderPart {
   turningStrength = 0.25;
   forcePositionRelativeToPart = new Vector3(0, 0, 0);
 
+  static getPartInfo(): ShipPartInfo {
+    return {
+      id: "small-rudder",
+      name: "Small Rudder",
+      category: "Controls",
+      description: "Steering rudder for ship maneuverability. Essential for changing direction.",
+      price: 30,
+      weight: 6.0,
+      constructor: SmallRudder,
+    };
+  }
+
   constructor(props: ShipPartProps) {
     super({ rotation: props.rotation, translation: props.translation });
     // Simple visual: thin vertical plate
@@ -365,3 +442,31 @@ const randomizeColor = (color: string | number | Color, randomness = 0.1) => {
   const b = clamp(color.b + Math.random() * randomness, 0, 1);
   return new Color(r, g, b);
 };
+
+export interface ShipPartInfo {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  price: number;
+  weight: number;
+  constructor: ShipPartConstructor;
+}
+
+const allShipParts = [Helm, WoodenBox, WoodenRamp, LeadBox, Propeller, SmallRudder];
+
+// Function to get all available ship parts
+export function getAllShipParts(): ShipPartInfo[] {
+  return allShipParts.map((part) => part.getPartInfo());
+}
+
+// Function to get parts by category
+export function getShipPartsByCategory(category: string): ShipPartInfo[] {
+  return getAllShipParts().filter((part) => part.category === category);
+}
+
+// Function to get unique categories
+export function getShipPartCategories(): string[] {
+  const categories = getAllShipParts().map((part) => part.category);
+  return [...new Set(categories)];
+}

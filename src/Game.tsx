@@ -30,7 +30,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { MAP_GENERATION_DATA_DEFAULT, setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { createTimeStats, resetDebugRigidBodies, Vector3 } from "./helpers";
+import { createTimeStats, destroySceneObjects, resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -99,10 +99,13 @@ const init = (mapGenerationData: MapGenerationData) => {
   setWorld(world);
   const cameraSwitcher = new CameraSwitcher(canvas);
   const camera = cameraSwitcher.camera;
-  const renderer = new WebGLRenderer({ antialias: true, canvas, alpha: true }); // TODO: settings
-  renderer.setPixelRatio(2); // TODO: settings
+  const pixelRatio = window.devicePixelRatio;
+  const ResolutionScalingFactor = 2; // TODO: get this from settings
+  const pixelRatioWithSuperSampling = pixelRatio * ResolutionScalingFactor;
+  const renderer = new WebGLRenderer({ antialias: true, canvas, alpha: false }); // TODO: settings
+  renderer.setPixelRatio(pixelRatioWithSuperSampling);
   const composer = new EffectComposer(renderer);
-  composer.setPixelRatio(2); // TODO: settings
+  composer.setPixelRatio(pixelRatioWithSuperSampling);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
 
@@ -252,6 +255,7 @@ const init = (mapGenerationData: MapGenerationData) => {
     previousAspectRatio = 0;
     destroySceneObjects(scene);
     renderer.dispose();
+    composer.dispose();
     gui.destroy();
     cameraSwitcher.dispose();
     resetDebugRigidBodies();
@@ -275,9 +279,8 @@ let previousAspectRatio = 0;
 
 const resizeRendererToDisplaySize = (renderer: WebGLRenderer, composer: EffectComposer, camera: PerspectiveCamera) => {
   const canvas = renderer.domElement;
-  const pixelRatio = window.devicePixelRatio;
-  const width = Math.floor(canvas.clientWidth * pixelRatio);
-  const height = Math.floor(canvas.clientHeight * pixelRatio);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
   const aspect = width / height;
   const needResize = aspect !== previousAspectRatio;
   previousAspectRatio = aspect;
@@ -288,41 +291,3 @@ const resizeRendererToDisplaySize = (renderer: WebGLRenderer, composer: EffectCo
     camera.updateProjectionMatrix();
   }
 };
-
-function destroySceneObjects(scene: Scene) {
-  scene.traverse((object) => {
-    console.log("disposing", object);
-    if (hasDispose(object)) {
-      object.dispose(false);
-    }
-
-    if (!isMesh(object)) return;
-
-    // Dispose of geometries
-    if (object.geometry) {
-      object.geometry.dispose();
-    }
-
-    // Dispose of materials
-    if (object.material) {
-      if (Array.isArray(object.material)) {
-        object.material.forEach((material) => material.dispose());
-      } else {
-        object.material.dispose();
-      }
-    }
-  });
-
-  // Remove objects from the scene
-  while (scene.children.length > 0) {
-    scene.remove(scene.children[0]);
-  }
-}
-
-function hasDispose(object: any): object is { dispose: (...args: any) => void } {
-  return object && object.dispose;
-}
-
-function isMesh(object: any): object is Mesh {
-  return object && object.isMesh;
-}

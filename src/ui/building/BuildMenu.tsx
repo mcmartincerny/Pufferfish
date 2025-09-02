@@ -1,99 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { theme } from "../Theme";
-
-export interface BuildItem {
-  id: string;
-  name: string;
-  category: string;
-  icon?: string; // For future icon support
-  description: string;
-  price: number;
-  weight: number;
-}
+import { getAllShipParts, getShipPartCategories, ShipPartInfo } from "../../objects/ShipParts";
+import { ItemIcon as PartIcon } from "./ItemIcon";
 
 enum BuildCategory {
   All = "All",
-  Blocks = "Blocks",
-  Tools = "Tools",
-  Vehicles = "Vehicles",
 }
-
-// Sample items - these can be replaced with actual game items later
-const SAMPLE_ITEMS: BuildItem[] = [
-  {
-    id: "wood-block",
-    name: "Wood Block",
-    category: BuildCategory.Blocks,
-    description: "A sturdy wooden block perfect for building structures. Lightweight and easy to work with.",
-    price: 5,
-    weight: 2.5,
-  },
-  {
-    id: "stone-block",
-    name: "Stone Block",
-    category: BuildCategory.Blocks,
-    description: "Heavy stone block for durable construction. Provides excellent structural integrity.",
-    price: 12,
-    weight: 15.0,
-  },
-  {
-    id: "metal-block",
-    name: "Metal Block",
-    category: BuildCategory.Blocks,
-    description: "Reinforced metal block with superior strength. Ideal for secure buildings.",
-    price: 25,
-    weight: 22.0,
-  },
-  {
-    id: "glass-block",
-    name: "Glass Block",
-    category: BuildCategory.Blocks,
-    description: "Transparent glass block for windows and decorative elements. Allows light to pass through.",
-    price: 18,
-    weight: 8.0,
-  },
-  {
-    id: "hammer",
-    name: "Hammer",
-    category: BuildCategory.Tools,
-    description: "Essential building tool for construction work. Perfect for driving nails and breaking blocks.",
-    price: 35,
-    weight: 1.8,
-  },
-  {
-    id: "wrench",
-    name: "Wrench",
-    category: BuildCategory.Tools,
-    description: "Adjustable wrench for tightening bolts and assembling mechanical parts.",
-    price: 28,
-    weight: 1.2,
-  },
-  {
-    id: "saw",
-    name: "Saw",
-    category: BuildCategory.Tools,
-    description: "Sharp saw for cutting wood and other materials. Essential for precision work.",
-    price: 42,
-    weight: 2.1,
-  },
-  {
-    id: "boat",
-    name: "Boat",
-    category: BuildCategory.Vehicles,
-    description: "Small watercraft for exploring oceans and rivers. Requires water to operate.",
-    price: 180,
-    weight: 45.0,
-  },
-  {
-    id: "car",
-    name: "Car",
-    category: BuildCategory.Vehicles,
-    description: "Four-wheeled vehicle for land transportation. Fast and reliable on roads.",
-    price: 320,
-    weight: 1200.0,
-  },
-];
 
 const BuildMenuContainer = styled.div`
   position: fixed;
@@ -208,18 +121,8 @@ const ItemSlot = styled.div<{ selected: boolean }>`
   `}
 `;
 
-const ItemIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  background-color: ${theme.colors.grey};
-  border-radius: 4px;
+const ItemIconWrapper = styled.div`
   margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: ${theme.colors.ultraWhite};
-  border: 1px solid ${theme.colors.greyDark};
 `;
 
 const ItemName = styled.div`
@@ -282,17 +185,7 @@ const ItemPreview = styled.div`
   }
 `;
 
-const PreviewIcon = styled.div`
-  width: 80px;
-  height: 80px;
-  background-color: ${theme.colors.grey};
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
-  color: ${theme.colors.ultraWhite};
-  border: 2px solid ${theme.colors.greyDark};
+const PreviewIconWrapper = styled.div`
   align-self: center;
 `;
 
@@ -334,10 +227,15 @@ const PreviewWeight = styled.div`
 
 export const BuildMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<BuildCategory>(BuildCategory.All);
+  const [selectedCategory, setSelectedCategory] = useState<string>(BuildCategory.All);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [hoveredItem, setHoveredItem] = useState<BuildItem | null>(null);
-  const [previewTimer, setPreviewTimer] = useState<number | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<ShipPartInfo | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
+
+  // Get all ship parts and categories (memoized for stable identities)
+  const allShipParts = useMemo(() => getAllShipParts(), []);
+  const shipCategories = useMemo(() => getShipPartCategories(), []);
+  const allCategories = useMemo(() => [BuildCategory.All, ...shipCategories], [shipCategories]);
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -354,28 +252,29 @@ export const BuildMenu = () => {
     };
   }, [isOpen]);
 
-  const filteredItems = selectedCategory === BuildCategory.All ? SAMPLE_ITEMS : SAMPLE_ITEMS.filter((item) => item.category === selectedCategory);
+  const filteredItems = selectedCategory === BuildCategory.All ? allShipParts : allShipParts.filter((item) => item.category === selectedCategory);
 
-  const handleItemHover = (item: BuildItem | null) => {
-    if (previewTimer) {
-      clearTimeout(previewTimer);
-      setPreviewTimer(null);
+  const handleItemHover = (item: ShipPartInfo | null) => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
     }
 
     if (item) {
-      const timer = setTimeout(() => {
+      const timer = window.setTimeout(() => {
         setHoveredItem(item);
+        previewTimerRef.current = null;
       }, 1000); // Show preview after 1 second
-      setPreviewTimer(timer);
+      previewTimerRef.current = timer;
     } else {
       setHoveredItem(null);
     }
   };
 
   const handleItemLeave = () => {
-    if (previewTimer) {
-      clearTimeout(previewTimer);
-      setPreviewTimer(null);
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
     }
     setHoveredItem(null);
   };
@@ -398,7 +297,7 @@ export const BuildMenu = () => {
         </BuildMenuHeader>
 
         <CategoryTabs>
-          {Object.values(BuildCategory).map((category) => (
+          {allCategories.map((category) => (
             <CategoryTab
               key={category}
               active={selectedCategory === category}
@@ -421,7 +320,9 @@ export const BuildMenu = () => {
               onMouseEnter={() => handleItemHover(item)}
               onMouseLeave={() => handleItemLeave()}
             >
-              <ItemIcon>{item.icon || item.name.charAt(0)}</ItemIcon>
+              <ItemIconWrapper>
+                <PartIcon partInfo={item} size="small" />
+              </ItemIconWrapper>
               <ItemName>{item.name}</ItemName>
               {selectedItemId === item.id && <SelectedIndicator>✓</SelectedIndicator>}
             </ItemSlot>
@@ -431,7 +332,9 @@ export const BuildMenu = () => {
 
       {hoveredItem && isOpen && (
         <ItemPreview>
-          <PreviewIcon>{hoveredItem.icon || hoveredItem.name.charAt(0)}</PreviewIcon>
+          <PreviewIconWrapper>
+            <PartIcon partInfo={hoveredItem} size="large" />
+          </PreviewIconWrapper>
           <PreviewName>{hoveredItem.name}</PreviewName>
           <PreviewDescription>{hoveredItem.description}</PreviewDescription>
           <PreviewBottom>
