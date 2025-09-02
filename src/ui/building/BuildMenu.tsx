@@ -2,17 +2,143 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { theme } from "../Theme";
 import { getAllShipParts, getShipPartCategories, ShipPartInfo } from "../../objects/ShipParts";
-import { ItemIcon as PartIcon } from "./ItemIcon";
+import { ItemIcon } from "./ItemIcon";
 
 enum BuildCategory {
   All = "All",
 }
 
+const SHOW_PREVIEW_DELAY = 500;
+
+export const BuildMenu = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>(BuildCategory.All);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<ShipPartInfo | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
+
+  // Get all ship parts and categories (memoized for stable identities)
+  const allShipParts = useMemo(() => getAllShipParts(), []);
+  const shipCategories = useMemo(() => getShipPartCategories(), []);
+  const allCategories = useMemo(() => [BuildCategory.All, ...shipCategories], [shipCategories]);
+
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "b") {
+        setIsOpen((prev) => !prev);
+      } else if (event.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyPress);
+    return () => {
+      document.removeEventListener("keydown", handleKeyPress);
+    };
+  }, [isOpen]);
+
+  const filteredItems = selectedCategory === BuildCategory.All ? allShipParts : allShipParts.filter((item) => item.category === selectedCategory);
+
+  const handleItemHover = (item: ShipPartInfo | null) => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+
+    if (item) {
+      const timer = window.setTimeout(() => {
+        setHoveredItem(item);
+        previewTimerRef.current = null;
+      }, SHOW_PREVIEW_DELAY);
+      previewTimerRef.current = timer;
+    } else {
+      setHoveredItem(null);
+    }
+  };
+
+  const handleItemLeave = () => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    setHoveredItem(null);
+  };
+
+  const handleItemClick = (itemId: string) => {
+    setSelectedItemId((prev) => (prev === itemId ? null : itemId));
+    // TODO: Integrate with building system later
+    console.log("Selected item:", itemId);
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <>
+      <BuildMenuContainer className={isOpen ? "open" : ""}>
+        <BuildMenuHeader>
+          <BuildMenuTitle>Build Menu</BuildMenuTitle>
+        </BuildMenuHeader>
+
+        <CategoryTabs>
+          {allCategories.map((category) => (
+            <CategoryTab
+              key={category}
+              active={selectedCategory === category}
+              onClick={() => {
+                setSelectedCategory(category);
+                setSelectedItemId(null); // Clear selection when switching categories
+              }}
+            >
+              {category}
+            </CategoryTab>
+          ))}
+        </CategoryTabs>
+
+        <ItemsGrid>
+          {filteredItems.map((item) => (
+            <ItemSlot
+              key={item.id}
+              selected={selectedItemId === item.id}
+              onClick={() => handleItemClick(item.id)}
+              onMouseEnter={() => handleItemHover(item)}
+              onMouseLeave={() => handleItemLeave()}
+            >
+              <ItemIconWrapper>
+                <ItemIcon partInfo={item} size="small" />
+              </ItemIconWrapper>
+              <ItemName>{item.name}</ItemName>
+              {selectedItemId === item.id && <SelectedIndicator>✓</SelectedIndicator>}
+            </ItemSlot>
+          ))}
+        </ItemsGrid>
+      </BuildMenuContainer>
+
+      {hoveredItem && isOpen && (
+        <ItemPreview>
+          <PreviewIconWrapper>
+            <ItemIcon partInfo={hoveredItem} size="large" />
+          </PreviewIconWrapper>
+          <PreviewName>{hoveredItem.name}</PreviewName>
+          <PreviewDescription>{hoveredItem.description}</PreviewDescription>
+          <PreviewBottom>
+            <PreviewWeight>{hoveredItem.weight} kg</PreviewWeight>
+            <PreviewPrice>${hoveredItem.price}</PreviewPrice>
+          </PreviewBottom>
+        </ItemPreview>
+      )}
+    </>
+  );
+};
+
+const BUILD_MENU_WIDTH = "min(30vw, 500px)";
+
 const BuildMenuContainer = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 30vw;
+  width: ${BUILD_MENU_WIDTH};
   min-width: 200px;
   height: 100vh;
   background-color: ${theme.colors.blueishBlack};
@@ -77,9 +203,10 @@ const ItemsGrid = styled.div`
   padding: 16px;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(80px, max-content));
   gap: 8px;
   align-content: start;
+  justify-items: start;
   max-height: calc(100vh - 120px);
 
   &::-webkit-scrollbar {
@@ -156,7 +283,7 @@ const SelectedIndicator = styled.div`
 const ItemPreview = styled.div`
   position: fixed;
   top: 16px;
-  left: calc(30vw + 16px);
+  left: calc(${BUILD_MENU_WIDTH} + 16px);
   min-width: 200px;
   width: 25vw;
   max-width: 300px;
@@ -224,125 +351,3 @@ const PreviewWeight = styled.div`
   font-size: 12px;
   opacity: 0.8;
 `;
-
-export const BuildMenu = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>(BuildCategory.All);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [hoveredItem, setHoveredItem] = useState<ShipPartInfo | null>(null);
-  const previewTimerRef = useRef<number | null>(null);
-
-  // Get all ship parts and categories (memoized for stable identities)
-  const allShipParts = useMemo(() => getAllShipParts(), []);
-  const shipCategories = useMemo(() => getShipPartCategories(), []);
-  const allCategories = useMemo(() => [BuildCategory.All, ...shipCategories], [shipCategories]);
-
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "b") {
-        setIsOpen((prev) => !prev);
-      } else if (event.key === "Escape" && isOpen) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyPress);
-    return () => {
-      document.removeEventListener("keydown", handleKeyPress);
-    };
-  }, [isOpen]);
-
-  const filteredItems = selectedCategory === BuildCategory.All ? allShipParts : allShipParts.filter((item) => item.category === selectedCategory);
-
-  const handleItemHover = (item: ShipPartInfo | null) => {
-    if (previewTimerRef.current) {
-      clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-
-    if (item) {
-      const timer = window.setTimeout(() => {
-        setHoveredItem(item);
-        previewTimerRef.current = null;
-      }, 1000); // Show preview after 1 second
-      previewTimerRef.current = timer;
-    } else {
-      setHoveredItem(null);
-    }
-  };
-
-  const handleItemLeave = () => {
-    if (previewTimerRef.current) {
-      clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-    setHoveredItem(null);
-  };
-
-  const handleItemClick = (itemId: string) => {
-    setSelectedItemId((prev) => (prev === itemId ? null : itemId));
-    // TODO: Integrate with building system later
-    console.log("Selected item:", itemId);
-  };
-
-  if (!isOpen) {
-    return null;
-  }
-
-  return (
-    <>
-      <BuildMenuContainer className={isOpen ? "open" : ""}>
-        <BuildMenuHeader>
-          <BuildMenuTitle>Build Menu</BuildMenuTitle>
-        </BuildMenuHeader>
-
-        <CategoryTabs>
-          {allCategories.map((category) => (
-            <CategoryTab
-              key={category}
-              active={selectedCategory === category}
-              onClick={() => {
-                setSelectedCategory(category);
-                setSelectedItemId(null); // Clear selection when switching categories
-              }}
-            >
-              {category}
-            </CategoryTab>
-          ))}
-        </CategoryTabs>
-
-        <ItemsGrid>
-          {filteredItems.map((item) => (
-            <ItemSlot
-              key={item.id}
-              selected={selectedItemId === item.id}
-              onClick={() => handleItemClick(item.id)}
-              onMouseEnter={() => handleItemHover(item)}
-              onMouseLeave={() => handleItemLeave()}
-            >
-              <ItemIconWrapper>
-                <PartIcon partInfo={item} size="small" />
-              </ItemIconWrapper>
-              <ItemName>{item.name}</ItemName>
-              {selectedItemId === item.id && <SelectedIndicator>✓</SelectedIndicator>}
-            </ItemSlot>
-          ))}
-        </ItemsGrid>
-      </BuildMenuContainer>
-
-      {hoveredItem && isOpen && (
-        <ItemPreview>
-          <PreviewIconWrapper>
-            <PartIcon partInfo={hoveredItem} size="large" />
-          </PreviewIconWrapper>
-          <PreviewName>{hoveredItem.name}</PreviewName>
-          <PreviewDescription>{hoveredItem.description}</PreviewDescription>
-          <PreviewBottom>
-            <PreviewWeight>{hoveredItem.weight} kg</PreviewWeight>
-            <PreviewPrice>${hoveredItem.price}</PreviewPrice>
-          </PreviewBottom>
-        </ItemPreview>
-      )}
-    </>
-  );
-};

@@ -30,7 +30,7 @@ export const CHUNK_SIZE = 256; // 64 is the sweet spot for FPS
 export class ChunkGenerator extends BetterObject3D {
   camera: PerspectiveCamera;
   viewDistance = 800;
-  lodTillDistance = { 200: 1, 400: 2, 500: 4, 600: 8, 700: 16, fallback: 32 };
+  lodTillDistance = { 300: 1, 400: 2, 500: 4, 600: 8, 700: 16, fallback: 32 };
   replaceMoreDetailedChunksForLessDetailed = true;
   onlyOneGenPerUpdate = true;
   chunks: Chunk[] = [];

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { ShipPartInfo } from "../../objects/ShipParts";
-import { destroySceneObjects, Quaternion, Vector3 } from "../../helpers";
+import { Quaternion, Vector3 } from "../../helpers";
+import { IconRendererManager } from "./ItemRendererManager";
 
 export interface ItemIconProps {
   partInfo: ShipPartInfo;
@@ -9,46 +10,43 @@ export interface ItemIconProps {
 }
 
 export const ItemIcon = ({ partInfo, size = "small" }: ItemIconProps) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animRef = useRef<number | null>(null);
+  const elementRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!elementRef.current) return;
 
-    const pixelSize = size === "small" ? 40 : 160;
-    const canvas = canvasRef.current;
+    const element = elementRef.current;
+    const manager = IconRendererManager.getInstance();
 
+    // Create scene for this part
     const { scene, camera, part } = createSceneForPart(partInfo);
-
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas, alpha: true });
-    renderer.setSize(pixelSize, pixelSize, false);
-    renderer.setPixelRatio(window.devicePixelRatio);
-
-    // Animate (slow rotation)
-    const animate = () => {
-      part.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z + 0.01);
-      renderer.render(scene, camera);
-      animRef.current = requestAnimationFrame(animate);
+    scene.userData.camera = camera;
+    scene.userData.element = element;
+    scene.userData.animate = () => {
+      part.rotation.z += 0.01;
     };
-    animate();
+
+    // Add to global renderer
+    manager.addScene(scene);
 
     // Cleanup
     return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-      renderer.dispose();
-      destroySceneObjects(scene);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      if (!canvasRef.current) {
-        console.log("canvasRef.current is null");
-        renderer.forceContextLoss();
-      }
+      manager.removeScene(scene);
     };
-  }, [partInfo, size]);
+  }, [partInfo]);
 
   const pixelSize = size === "small" ? 40 : 160;
 
-  return <canvas ref={canvasRef} style={{ width: pixelSize, height: pixelSize, display: "block" }} />;
+  return (
+    <div
+      ref={elementRef}
+      style={{
+        width: pixelSize,
+        height: pixelSize,
+        display: "block",
+      }}
+    />
+  );
 };
 
 const createSceneForPart = (partInfo: ShipPartInfo) => {
