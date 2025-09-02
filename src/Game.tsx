@@ -46,6 +46,7 @@ import { ShipPlayer } from "./objects/ShipPlayer.ts";
 import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
 import { MainMenu } from "./ui/MainMenu.tsx";
 import { MapGenerationData } from "./ui/NewMap.tsx";
+import { BuildMenu } from "./ui/building/BuildMenu.tsx";
 await RAPIER.init();
 
 const stats = new Stats();
@@ -80,6 +81,7 @@ export const Game = () => {
     <>
       <canvas id="mainCanvas" />
       <MainMenu reloadGame={reloadGame} generateMap={generateMap} mapGenerationData={mapGenerationData} />
+      <BuildMenu />
     </>
   );
 };
@@ -171,21 +173,6 @@ const init = (mapGenerationData: MapGenerationData) => {
   scene.add(sky);
   sky.init();
 
-  // scene.fog = new Fog(0xcccccc, 20, 80);
-
-  // const geometry = new SphereGeometry(0.62, 100, 100);
-  // const material = new MeshPhongMaterial({ color: 0xaa7788 });
-  // const sphere = new Mesh(geometry, material);
-  // scene.add(sphere);
-  // const sphereRigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0.0, 2.0, 5.0));
-  // const sphereCollider = world.createCollider(RAPIER.ColliderDesc.ball(0.62).setTranslation(0.0, 0.0, 0.0), sphereRigidBody);
-  // sphereCollider.setRestitution(0.8);
-  // const sphereObject = new BuoyantObject();
-  // sphereObject.add(sphere);
-  // sphereObject.rigidBody = sphereRigidBody;
-  // scene.add(sphereObject);
-  // sphereObject.init();
-
   const cubeGeometry = new BoxGeometry(2, 2, 2);
   const cubeMaterial = new MeshStandardMaterial({ color: 0x44aa88 });
   const cube = new Mesh(cubeGeometry, cubeMaterial);
@@ -209,22 +196,6 @@ const init = (mapGenerationData: MapGenerationData) => {
   cube2Object.rigidBody = cube2RigidBody;
   scene.add(cube2Object);
   cube2Object.init();
-
-  // const cube3 = new Mesh(cubeGeometry, cubeGray);
-  // const cube3RigidBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-1.0, -1.0, 5.0));
-  // const cube3Collider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0.0, 0.0, 0.0), cube3RigidBody);
-  // cube3Collider.setRestitution(0.8);
-  // const cube3Object = new BuoyantObject();
-  // cube3Object.add(cube3);
-  // cube3Object.rigidBody = cube3RigidBody;
-  // scene.add(cube3Object);
-
-  // world.createImpulseJoint(
-  //   JointData.fixed({ x: -0.5, y: 0, z: 0 }, new Quaternion(), { x: 0.5, y: 0, z: 0 }, new Quaternion()),
-  //   cube2RigidBody,
-  //   cube3RigidBody,
-  //   true
-  // );
 
   const ship = new ShipPlayer(new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10));
   scene.add(ship);
