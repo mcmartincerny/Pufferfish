@@ -460,11 +460,6 @@ export function getAllShipParts(): ShipPartInfo[] {
   return allShipParts.map((part) => part.getPartInfo());
 }
 
-// Function to get parts by category
-export function getShipPartsByCategory(category: string): ShipPartInfo[] {
-  return getAllShipParts().filter((part) => part.category === category);
-}
-
 // Function to get unique categories
 export function getShipPartCategories(): string[] {
   const categories = getAllShipParts().map((part) => part.category);
