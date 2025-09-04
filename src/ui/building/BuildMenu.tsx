@@ -3,6 +3,8 @@ import styled from "@emotion/styled";
 import { theme } from "../Theme";
 import { getAllShipParts, getShipPartCategories, ShipPartInfo } from "../../objects/ShipParts";
 import { ItemIcon } from "./ItemIcon";
+import { useGameValue } from "../GameContext";
+import { AnimatePresence, motion } from "framer-motion";
 
 enum BuildCategory {
   All = "All",
@@ -11,9 +13,8 @@ enum BuildCategory {
 const SHOW_PREVIEW_DELAY = 500;
 
 export const BuildMenu = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [mode, setMode] = useGameValue("mode");
   const [selectedCategory, setSelectedCategory] = useState<string>(BuildCategory.All);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<ShipPartInfo | null>(null);
   const previewTimerRef = useRef<number | null>(null);
 
@@ -25,9 +26,13 @@ export const BuildMenu = () => {
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === "b") {
-        setIsOpen((prev) => !prev);
-      } else if (event.key === "Escape" && isOpen) {
-        setIsOpen(false);
+        if (mode === "build") {
+          setMode("third_person");
+        } else {
+          setMode("build");
+        }
+      } else if (event.key === "Escape" && mode === "build") {
+        setMode("third_person");
       }
     };
 
@@ -35,7 +40,7 @@ export const BuildMenu = () => {
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
     };
-  }, [isOpen]);
+  }, [mode, setMode]);
 
   const filteredItems = selectedCategory === BuildCategory.All ? allShipParts : allShipParts.filter((item) => item.category === selectedCategory);
 
@@ -64,58 +69,63 @@ export const BuildMenu = () => {
     setHoveredItem(null);
   };
 
-  const handleItemClick = (itemId: string) => {
-    setSelectedItemId((prev) => (prev === itemId ? null : itemId));
-    // TODO: Integrate with building system later
-    console.log("Selected item:", itemId);
-  };
+  const [selectedItem, setSelectedItem] = useGameValue("building.selectedItem");
 
-  if (!isOpen) {
-    return null;
-  }
+  const handleItemClick = (item: ShipPartInfo) => {
+    // is item already selected?
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(null);
+    } else {
+      setSelectedItem(item);
+    }
+  };
 
   return (
     <>
-      <BuildMenuContainer className={isOpen ? "open" : ""}>
-        <BuildMenuHeader>
-          <BuildMenuTitle>Build Menu</BuildMenuTitle>
-        </BuildMenuHeader>
+      <AnimatePresence>
+        {mode === "build" && (
+          <BuildMenuContainer initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: 0.5 }}>
+            <BuildMenuHeader>
+              <BuildMenuTitle>Build Menu</BuildMenuTitle>
+            </BuildMenuHeader>
 
-        <CategoryTabs>
-          {allCategories.map((category) => (
-            <CategoryTab
-              key={category}
-              active={selectedCategory === category}
-              onClick={() => {
-                setSelectedCategory(category);
-                setSelectedItemId(null); // Clear selection when switching categories
-              }}
-            >
-              {category}
-            </CategoryTab>
-          ))}
-        </CategoryTabs>
+            <CategoryTabs>
+              {allCategories.map((category) => (
+                <CategoryTab
+                  key={category}
+                  active={selectedCategory === category}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setSelectedItem(null); // Clear selection when switching categories
+                  }}
+                >
+                  {category}
+                </CategoryTab>
+              ))}
+            </CategoryTabs>
 
-        <ItemsGrid>
-          {filteredItems.map((item) => (
-            <ItemSlot
-              key={item.id}
-              selected={selectedItemId === item.id}
-              onClick={() => handleItemClick(item.id)}
-              onMouseEnter={() => handleItemHover(item)}
-              onMouseLeave={() => handleItemLeave()}
-            >
-              <ItemIconWrapper>
-                <ItemIcon partInfo={item} size="small" />
-              </ItemIconWrapper>
-              <ItemName>{item.name}</ItemName>
-              {selectedItemId === item.id && <SelectedIndicator>✓</SelectedIndicator>}
-            </ItemSlot>
-          ))}
-        </ItemsGrid>
-      </BuildMenuContainer>
+            <ItemsGrid>
+              {filteredItems.map((item) => (
+                <ItemSlot
+                  key={item.id}
+                  selected={selectedItem?.id === item.id}
+                  onClick={() => handleItemClick(item)}
+                  onMouseEnter={() => handleItemHover(item)}
+                  onMouseLeave={() => handleItemLeave()}
+                >
+                  <ItemIconWrapper>
+                    <ItemIcon partInfo={item} size="small" />
+                  </ItemIconWrapper>
+                  <ItemName>{item.name}</ItemName>
+                  {selectedItem === item && <SelectedIndicator>✓</SelectedIndicator>}
+                </ItemSlot>
+              ))}
+            </ItemsGrid>
+          </BuildMenuContainer>
+        )}
+      </AnimatePresence>
 
-      {hoveredItem && isOpen && (
+      {hoveredItem && (
         <ItemPreview>
           <PreviewIconWrapper>
             <ItemIcon partInfo={hoveredItem} size="large" />
@@ -134,7 +144,7 @@ export const BuildMenu = () => {
 
 const BUILD_MENU_WIDTH = "min(30vw, 500px)";
 
-const BuildMenuContainer = styled.div`
+const BuildMenuContainer = styled(motion.div)`
   position: fixed;
   top: 0;
   left: 0;
@@ -147,11 +157,6 @@ const BuildMenuContainer = styled.div`
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  transform: translateX(-100%);
-  transition: transform 0.3s ease-in-out;
-  &.open {
-    transform: translateX(0);
-  }
 `;
 
 const BuildMenuHeader = styled.div`

@@ -1,5 +1,6 @@
 import { Object3D } from "three";
 import { Game } from "./Game";
+// Store context removed; components read store via singleton internally
 import { Vector3 } from "./helpers";
 import { IconRendererManager } from "./ui/building/ItemRendererManager";
 import { useEffect } from "react";
@@ -14,11 +15,18 @@ function App() {
       IconRendererManager.disposeInstance();
     };
   }, []);
-  return (
-    <>
-      <Game />
-    </>
-  );
+
+  useEffect(() => {
+    // Disable right click context menu
+    const contextMenuListener = (event: MouseEvent) => {
+      event.preventDefault();
+    };
+    document.addEventListener("contextmenu", contextMenuListener);
+    return () => {
+      document.removeEventListener("contextmenu", contextMenuListener);
+    };
+  }, []);
+  return <Game />;
 }
 
 export default App;

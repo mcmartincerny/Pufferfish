@@ -4,10 +4,13 @@ import { BetterObject3D } from "../objects/BetterObject3D";
 // @ts-ignore
 import { OrbitControls } from "three/addons/controls/OrbitControls";
 import { ThirdPersonCamera } from "./ThirdPersonCamera";
+import { BuildCamera } from "./BuildCamera";
+import { GameStore } from "../ui/GameContext.tsx";
 export enum CameraType {
   Free = "Free",
   TopDown = "TopDown",
   ThirdPerson = "ThirdPerson",
+  BuildCamera = "BuildCamera",
   None = "None",
 }
 
@@ -23,6 +26,8 @@ export class CameraSwitcher {
   orbitControls?: OrbitControls;
   followingCamera?: TopDownCamera;
   thirdPersonCamera?: ThirdPersonCamera;
+  buildCamera?: BuildCamera;
+  disposeFunctions: (() => void)[] = [];
 
   constructor(canvasElement: HTMLCanvasElement, cameraTarget?: BetterObject3D, cameraType: CameraType = CameraType.ThirdPerson) {
     this.canvasElement = canvasElement;
@@ -39,6 +44,19 @@ export class CameraSwitcher {
     this.camera.position.y = -10;
     this.camera.position.x = 0;
     this.switchCamera(this.type);
+
+    const store = GameStore.getInstance();
+    const unsubscribeMode = store.subscribe("mode", (mode) => {
+      switch (mode) {
+        case "third_person":
+          this.switchCamera(CameraType.ThirdPerson);
+          this.canvasElement.requestPointerLock({ unadjustedMovement: true });
+          break;
+        case "build":
+          this.switchCamera(CameraType.BuildCamera);
+      }
+    });
+    this.disposeFunctions.push(unsubscribeMode);
   }
 
   setTarget(target: BetterObject3D) {
@@ -49,6 +67,8 @@ export class CameraSwitcher {
       this.thirdPersonCamera.target = target;
     } else if (this.followingCamera) {
       this.followingCamera.target = target;
+    } else if (this.buildCamera) {
+      this.buildCamera.target = target;
     }
   }
 
@@ -59,6 +79,8 @@ export class CameraSwitcher {
       this.unswitchFromFollowCamera();
     } else if (this.type === CameraType.ThirdPerson) {
       this.unswitchFromThirdPersonCamera();
+    } else if (this.type === CameraType.BuildCamera) {
+      this.unswitchFromBuildCamera();
     }
 
     this.type = type;
@@ -69,6 +91,8 @@ export class CameraSwitcher {
       this.switchToFollowCamera();
     } else if (this.type === CameraType.ThirdPerson) {
       this.switchToThirdPersonCamera();
+    } else if (this.type === CameraType.BuildCamera) {
+      this.switchToBuildCamera();
     }
   }
 
@@ -104,7 +128,6 @@ export class CameraSwitcher {
       this.thirdPersonCamera = new ThirdPersonCamera(this.camera, this.cameraTarget, this.canvasElement);
       this.thirdPersonCamera.init();
     }
-    this.camera.quaternion.set(0.5, 0, 0, 1);
     this.thirdPersonCamera.setActive(true);
   }
 
@@ -112,11 +135,25 @@ export class CameraSwitcher {
     this.thirdPersonCamera?.setActive(false);
   }
 
+  switchToBuildCamera() {
+    if (!this.buildCamera) {
+      this.buildCamera = new BuildCamera(this.camera, this.cameraTarget, this.canvasElement);
+      this.buildCamera.init();
+    }
+    this.buildCamera.setActive(true);
+  }
+
+  unswitchFromBuildCamera() {
+    this.buildCamera?.setActive(false);
+  }
+
   beforeStep() {
     if (this.type === CameraType.TopDown) {
       this.followingCamera?.beforeStep();
     } else if (this.type === CameraType.ThirdPerson) {
       this.thirdPersonCamera?.beforeStep();
+    } else if (this.type === CameraType.BuildCamera) {
+      this.buildCamera?.beforeStep();
     }
   }
 
@@ -125,6 +162,8 @@ export class CameraSwitcher {
       this.followingCamera?.afterStep();
     } else if (this.type === CameraType.ThirdPerson) {
       this.thirdPersonCamera?.afterStep();
+    } else if (this.type === CameraType.BuildCamera) {
+      this.buildCamera?.afterStep();
     }
   }
 
@@ -132,8 +171,11 @@ export class CameraSwitcher {
     this.unswitchFromFreeCamera();
     this.unswitchFromFollowCamera();
     this.unswitchFromThirdPersonCamera();
+    this.unswitchFromBuildCamera();
     this.orbitControls?.dispose();
     this.followingCamera?.dispose();
     this.thirdPersonCamera?.dispose();
+    this.buildCamera?.dispose();
+    this.disposeFunctions.forEach((fn) => fn());
   }
 }

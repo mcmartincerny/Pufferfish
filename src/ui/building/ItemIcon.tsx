@@ -57,7 +57,7 @@ const createSceneForPart = (partInfo: ShipPartInfo) => {
   // Lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
   scene.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  const dir = new THREE.DirectionalLight(0xffffff, 2);
   dir.position.set(3, 4, 5);
   scene.add(dir);
 

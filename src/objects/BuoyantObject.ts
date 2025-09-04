@@ -1,5 +1,5 @@
 import { Collider, QueryFilterFlags, Ray, RigidBody } from "@dimforge/rapier3d-compat";
-import { clamp, createTimeStats, debugRigidBody, degToRad, DragRayCache, log10000, log50, quantizeDirKey, Quaternion, Vector3 } from "../helpers";
+import { clamp, createTimeStats, debugRigidBody, degToRad, DragRayCache, log10000, log50, quantizeDirKey, Quaternion, toRange, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 import { currentDeltaTime, world } from "../Globals";
@@ -8,7 +8,8 @@ import { Euler, Vector3Like } from "three";
 
 const BUOYANCY_FACTOR = 33;
 const OBJECT_SIZE = 1;
-const ANGULAR_DAMPING = 0.4; // TODO: Delete this when propper damping is implemented
+const ANGULAR_DAMPING = 0.02; // TODO: Delete this when propper damping is implemented
+const FAKE_DRAG_AT_LOW_SPEEDS = 0.001;
 
 /**
  * BuoyantObject is a class that represents an object that is buoyant.
@@ -33,6 +34,12 @@ export class BuoyantObject extends BetterObject3D {
     }
 
     const velocity = new Vector3(this.rigidBody.linvel());
+    const speed = velocity.length();
+    const fakeBreakingForce = toRange(speed, { min: 0, max: 3 }, { min: FAKE_DRAG_AT_LOW_SPEEDS, max: 0 });
+    if (fakeBreakingForce > 0) {
+      const fakeBreakingForceVector = velocity.clone().multiplyScalar(-fakeBreakingForce);
+      this.rigidBody.applyImpulse(fakeBreakingForceVector, true);
+    }
 
     const percentageSubmergedPerCollider = []; // TODO: calculate submerged volume using raycasting from the bottom of the object
     for (let i = 0; i < numColliders; i++) {
@@ -57,8 +64,12 @@ export class BuoyantObject extends BetterObject3D {
         this.rigidBody.applyImpulseAtPoint(buoyantForceWithDelta, collider.translation(), true);
 
         // Angular damping
-        const angularDampingForce = new Vector3(this.rigidBody.angvel()).multiplyScalar(-ANGULAR_DAMPING * volume * percentageSubmerged);
+        const angularDampingForce = new Vector3(this.rigidBody.angvel()).multiplyScalar(-ANGULAR_DAMPING * volume * percentageSubmerged * currentDeltaTime);
         this.rigidBody.applyTorqueImpulse(angularDampingForce, true);
+
+        // Fake drag
+        const fakeDragForce = new Vector3(this.rigidBody.linvel()).multiplyScalar(-FAKE_DRAG_AT_LOW_SPEEDS * volume * percentageSubmerged * currentDeltaTime);
+        this.rigidBody.applyImpulse(fakeDragForce, true);
       }
     }
     this.percentageSubmerged = percentageSubmergedPerCollider.reduce((a, b) => a + b, 0) / percentageSubmergedPerCollider.length;

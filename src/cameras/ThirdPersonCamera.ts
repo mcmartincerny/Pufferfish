@@ -10,9 +10,6 @@ export class ThirdPersonCamera extends BetterObject3D {
   _target!: BetterObject3D;
   canvas: HTMLCanvasElement;
   maxZBellowTarget = 0.8;
-  velocityMultiplier = 0.3;
-  moveKp = 0.015;
-  linearDamping = 30;
   // Camera rotation
   mouseSensitivity = 0.004;
   minPitch = -70;
