@@ -19,10 +19,10 @@ export class ThirdPersonCamera extends BetterObject3D {
   yaw = 0;
   pitch = 0;
   // Scroll configuration
-  behindOffset = 10;
-  minBehindOffset = 1;
-  maxBehindOffset = 30;
-  behindScrollStep = 1;
+  distance = 10;
+  minDistance = 1;
+  maxDistance = 30;
+  distanceStep = 1;
   zOffset = 2;
   minZOffset = -1;
   maxZOffset = 7;
@@ -77,7 +77,7 @@ export class ThirdPersonCamera extends BetterObject3D {
     const targetPosition = this.getTargetPosition();
     const idealCameraPosition = targetPosition.clone().setZ(targetPosition.z + this.zOffset);
     // console.log(this.rigidBody.translation());
-    const offsetVector = new Vector3(0, 0, this.behindOffset);
+    const offsetVector = new Vector3(0, 0, this.distance);
     offsetVector.applyQuaternion(this.camera.quaternion);
     idealCameraPosition.add(offsetVector);
     if (idealCameraPosition.z < targetPosition.z - this.maxZBellowTarget) {
@@ -95,9 +95,9 @@ export class ThirdPersonCamera extends BetterObject3D {
 
     // Convert spherical coordinates → cartesian
     const target = this.target.position; // your player or object position
-    const x = target.x + this.behindOffset * Math.cos(this.pitch) * Math.cos(this.yaw);
-    const y = target.y + this.behindOffset * Math.cos(this.pitch) * Math.sin(this.yaw);
-    const z = target.z + this.behindOffset * Math.sin(this.pitch);
+    const x = target.x + this.distance * Math.cos(this.pitch) * Math.cos(this.yaw);
+    const y = target.y + this.distance * Math.cos(this.pitch) * Math.sin(this.yaw);
+    const z = target.z + this.distance * Math.sin(this.pitch);
 
     // Position and look at target
     this.camera.position.set(x, y, z);
@@ -151,8 +151,8 @@ export class ThirdPersonCamera extends BetterObject3D {
       this.zOffset = MathUtils.clamp(this.zOffset, this.minZOffset, this.maxZOffset);
     } else {
       // Adjust distance behind the target
-      this.behindOffset += direction * this.behindScrollStep;
-      this.behindOffset = MathUtils.clamp(this.behindOffset, this.minBehindOffset, this.maxBehindOffset);
+      this.distance += direction * this.distanceStep;
+      this.distance = MathUtils.clamp(this.distance, this.minDistance, this.maxDistance);
     }
   };
 

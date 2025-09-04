@@ -123,6 +123,10 @@ export const degToRad = (degrees: number) => {
   return degrees * (Math.PI / 180);
 };
 
+export const radToDeg = (radians: number) => {
+  return radians * (180 / Math.PI);
+};
+
 export const average = (array: number[]) => {
   let total = 0;
   for (const value of array) {

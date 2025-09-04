@@ -8,10 +8,10 @@ export class BuildCamera extends BetterObject3D {
   canvas: HTMLCanvasElement;
 
   // Camera configuration
-  distance = 15;
+  distance = 10;
   minDistance = 3;
   maxDistance = 50;
-  scrollStep = 2;
+  distanceStep = 2;
 
   // Rotation controls (only when right mouse is held)
   yaw = 0;
@@ -139,7 +139,7 @@ export class BuildCamera extends BetterObject3D {
     event.preventDefault();
 
     const direction = Math.sign(event.deltaY);
-    this.distance += direction * this.scrollStep;
+    this.distance += direction * this.distanceStep;
     this.distance = clamp(this.distance, this.minDistance, this.maxDistance);
   };
 
