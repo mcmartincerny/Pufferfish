@@ -5,6 +5,13 @@ import { degToRad, Quaternion, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
 import { world } from "../Globals";
 import { RigidBody, RigidBodyDesc } from "@dimforge/rapier3d-compat";
+import { Blueprint, BlueprintPart } from "./BlueprintBuildable";
+
+export type ShipProps = {
+  blueprint: Blueprint;
+  position: Vector3;
+  rotation: Quaternion;
+};
 
 export class Ship extends BuoyantObject {
   rigidBody: RigidBody;
@@ -12,13 +19,24 @@ export class Ship extends BuoyantObject {
   helm!: Helm;
   thrustParts: ThrustingPart[] = [];
   rudderParts: RudderPart[] = [];
-  constructor(position: Vector3) {
+  isShip = true;
+  blueprint: Blueprint;
+  shipProps: ShipProps;
+  constructor(shipProps: ShipProps) {
     super({ size: 1 });
-    this.isShip = true;
+    this.shipProps = shipProps;
+    const { position, rotation, blueprint } = shipProps;
+    this.blueprint = blueprint;
+    if (!this.blueprint.isShip) {
+      throw new Error("Blueprint is not a ship");
+    }
     // Single rigid body for the entire ship
     this.rigidBody = world.createRigidBody(RigidBodyDesc.dynamic().setTranslation(position.x, position.y, position.z));
+    if (rotation) {
+      this.rigidBody.setRotation(rotation, true);
+    }
     let hasHelm = false;
-    const partsOnShip = shipDesignToPartsOnShip(shipDesign);
+    const partsOnShip = this.blueprint.parts;
     for (const part of partsOnShip) {
       const { part: Part, position: partPosition, rotation } = part;
       const rotationQuaternion = new Quaternion().setFromEuler(rotation);
@@ -48,15 +66,8 @@ export class Ship extends BuoyantObject {
   }
 }
 
-type PartOnShip = {
-  part: ShipPartConstructor;
-  position: Vector3;
-  rotation: Euler;
-  partName?: string;
-};
-
-const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
-  const partsOnShip: PartOnShip[] = [];
+const shipDesignToPartsOnShip = (design: string[][]): BlueprintPart[] => {
+  const partsOnShip: BlueprintPart[] = [];
 
   const numLayers = design.length;
   if (numLayers === 0) return partsOnShip;
@@ -87,6 +98,7 @@ const shipDesignToPartsOnShip = (design: string[][]): PartOnShip[] => {
   // console.log(JSON.stringify(partsOnShip, null, 2));
   return partsOnShip;
 };
+
 export const shipLegend = {
   "■": {
     part: WoodenBox,
@@ -134,6 +146,9 @@ export const shipLegend = {
   },
 };
 
-// next to each other means equal any two of X, Y or Z and the third one is different exactly by 1
-// this only works in the positive direction - used for only creating joints once
-// With single-body ship, neighbor checks are no longer needed
+export const defaultShipBlueprint: Blueprint = {
+  name: "Default",
+  description: "Default ship blueprint",
+  isShip: true,
+  parts: shipDesignToPartsOnShip(shipDesign),
+};

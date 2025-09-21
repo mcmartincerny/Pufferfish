@@ -30,7 +30,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { MAP_GENERATION_DATA_DEFAULT, setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { createTimeStats, destroySceneObjects, resetDebugRigidBodies, Vector3 } from "./helpers";
+import { createTimeStats, destroySceneObjects, Quaternion, resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -47,6 +47,8 @@ import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
 import { MainMenu } from "./ui/MainMenu.tsx";
 import { MapGenerationData } from "./ui/NewMap.tsx";
 import { BuildMenu } from "./ui/building/BuildMenu.tsx";
+import { GameStore } from "./ui/GameContext.tsx";
+import { defaultShipBlueprint } from "./objects/Ship.ts";
 await RAPIER.init();
 
 const stats = new Stats();
@@ -65,6 +67,7 @@ export const Game = () => {
   }, []);
 
   useEffect(() => {
+    GameStore.getInstance().resetToInitialState();
     return init(mapGenerationData);
   }, [reset]);
 
@@ -174,7 +177,6 @@ const init = (mapGenerationData: MapGenerationData) => {
 
   const sky = new CustomSky(camera);
   scene.add(sky);
-  sky.init();
 
   const cubeGeometry = new BoxGeometry(2, 2, 2);
   const cubeMaterial = new MeshStandardMaterial({ color: 0x44aa88 });
@@ -186,7 +188,6 @@ const init = (mapGenerationData: MapGenerationData) => {
   cubeObject.add(cube);
   cubeObject.rigidBody = cubeRigidBody;
   scene.add(cubeObject);
-  cubeObject.init();
 
   const cubeGrayGeometry = new BoxGeometry(1.5, 1.5, 1.5);
   const cubeGray = new MeshStandardMaterial({ color: 0xcccccc });
@@ -198,20 +199,20 @@ const init = (mapGenerationData: MapGenerationData) => {
   cube2Object.add(cube2);
   cube2Object.rigidBody = cube2RigidBody;
   scene.add(cube2Object);
-  cube2Object.init();
 
-  const ship = new ShipPlayer(new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10));
+  const ship = new ShipPlayer({
+    position: new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10),
+    rotation: new Quaternion(),
+    blueprint: defaultShipBlueprint,
+  });
   scene.add(ship);
-  ship.init();
   cameraSwitcher.setTarget(ship);
 
   const water = new Water();
   scene.add(water);
-  water.init();
 
   const chunkGenerator = new ChunkGenerator({ camera, mapGenerationData });
   scene.add(chunkGenerator);
-  chunkGenerator.init();
 
   gui
     .add({}, "dummy", CameraType)

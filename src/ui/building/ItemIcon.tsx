@@ -69,7 +69,6 @@ const createSceneForPart = (partInfo: ShipPartInfo) => {
   // Create part instance centered at origin
   const part = new partInfo.constructor({ rotation: new Quaternion(), translation: new Vector3(0, 0, 0) });
   scene.add(part);
-  part.init();
 
   // Center and frame the object
   const bbox = new THREE.Box3().setFromObject(part);

@@ -5,24 +5,9 @@ import { world } from "../Globals";
 export class BetterObject3D extends Object3D {
   rigidBody?: RAPIER.RigidBody;
   mainMesh?: Mesh;
-  initialized = false;
   isDisposed = false;
   constructor() {
     super();
-    setTimeout(() => {
-      if (!this.initialized) {
-        throw new Error("BetterObject3D " + this.constructor.name + " must be initialized");
-      }
-    }, 0);
-  }
-
-  init() {
-    this.initialized = true;
-    this.children.forEach((child) => {
-      if (child instanceof BetterObject3D) {
-        child.init();
-      }
-    });
   }
 
   beforeStep() {

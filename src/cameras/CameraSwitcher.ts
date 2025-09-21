@@ -65,7 +65,6 @@ export class CameraSwitcher {
     if (!cameraTarget) {
       cameraTarget = new BetterObject3D();
       cameraTarget.position.set(0, 0, 0);
-      cameraTarget.init();
     }
 
     this.cameraTarget = cameraTarget;
@@ -92,12 +91,12 @@ export class CameraSwitcher {
   setTarget(target: BetterObject3D) {
     this.cameraTarget = target;
     if (this.thirdPersonCamera) {
-      console.log("setting third person camera target");
-      console.log(this.thirdPersonCamera.target.rigidBody?.translation());
       this.thirdPersonCamera.target = target;
-    } else if (this.followingCamera) {
+    }
+    if (this.followingCamera) {
       this.followingCamera.target = target;
-    } else if (this.buildCamera) {
+    }
+    if (this.buildCamera) {
       this.buildCamera.target = target;
     }
   }
@@ -161,7 +160,6 @@ export class CameraSwitcher {
   switchToFollowCamera() {
     if (!this.followingCamera) {
       this.followingCamera = new TopDownCamera(this.camera, this.cameraTarget, this.canvasElement);
-      this.followingCamera.init();
     }
   }
 
@@ -170,7 +168,6 @@ export class CameraSwitcher {
   switchToThirdPersonCamera() {
     if (!this.thirdPersonCamera) {
       this.thirdPersonCamera = new ThirdPersonCamera(this.camera, this.cameraTarget, this.canvasElement);
-      this.thirdPersonCamera.init();
     }
     this.thirdPersonCamera.setActive(true);
   }
@@ -181,8 +178,7 @@ export class CameraSwitcher {
 
   switchToBuildCamera() {
     if (!this.buildCamera) {
-      this.buildCamera = new BuildCamera(this.camera, this.cameraTarget, this.canvasElement);
-      this.buildCamera.init();
+      this.buildCamera = new BuildCamera(this.camera, this.cameraTarget, this.canvasElement, this);
     }
     this.buildCamera.setActive(true);
   }

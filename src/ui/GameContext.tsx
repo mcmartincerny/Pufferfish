@@ -24,6 +24,8 @@ export const initialGameState: GameState = {
   building: { selectedItem: null },
 };
 
+deepFreeze(initialGameState);
+
 // Type-level utilities to infer dot-paths and their values from GameState
 type Primitive = string | number | boolean | symbol | bigint | null | undefined;
 type NonObject = Primitive | ((...args: unknown[]) => unknown) | Date | RegExp | Array<unknown>;
@@ -70,7 +72,7 @@ export class GameStore {
   static instance: GameStore;
   static getInstance(): GameStore {
     if (!GameStore.instance) {
-      GameStore.instance = new GameStore(initialGameState);
+      GameStore.instance = new GameStore(deepCopyUsingJSON(initialGameState));
     }
     return GameStore.instance;
   }
@@ -116,6 +118,17 @@ export class GameStore {
       }
     };
   }
+
+  resetToInitialState() {
+    this.state = deepCopyUsingJSON(initialGameState);
+    // notify all listeners
+    [...this.listeners.entries()].forEach(([path, listener]) =>
+      listener.forEach((l) => {
+        console.log("notifying listener", path, this.get(path as GamePath), l);
+        l(this.get(path as GamePath));
+      })
+    );
+  }
 }
 
 // React context for the store instance
@@ -129,4 +142,20 @@ export function useGameValue<P extends GamePath>(path: P): [PathValue<GameState,
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as PathValue<GameState, P>; // TODO: Maybe remove the third argument?
   const set = useCallback((v: PathValue<GameState, P>) => store.set(path, v), [store, path]);
   return [value, set];
+}
+
+function deepFreeze<T>(obj: T): T {
+  if (typeof obj === "object" && obj !== null) {
+    Object.freeze(obj);
+    Object.values(obj).forEach((value) => deepFreeze(value));
+  }
+  return obj;
+}
+
+/**
+ * This uses JSON.parse(JSON.stringify(obj)) to create a deep copy of the object.
+ * Can be only used for simple data like objects or arrays.
+ */
+function deepCopyUsingJSON<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
 }

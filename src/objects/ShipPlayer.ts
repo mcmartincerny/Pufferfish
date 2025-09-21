@@ -1,5 +1,6 @@
 import { Vector3 } from "../helpers";
-import { Ship } from "./Ship";
+import { Blueprint } from "./BlueprintBuildable";
+import { Ship, ShipProps } from "./Ship";
 
 const THRUST_FORWARD_KEY = "w";
 const THRUST_BACKWARD_KEY = "s";
@@ -10,8 +11,8 @@ const RUDDER_DOWN_KEY = "ArrowDown";
 
 export class ShipPlayer extends Ship {
   pressedKeys: Set<string> = new Set();
-  constructor(position: Vector3) {
-    super(position);
+  constructor(shipProps: ShipProps) {
+    super(shipProps);
 
     document.addEventListener("keydown", this.keyDown);
     document.addEventListener("keyup", this.keyUp);

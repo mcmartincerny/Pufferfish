@@ -42,6 +42,7 @@ export class Water extends BetterObject3D {
       const layer = new Mesh(waterGeometry, waterMaterial);
       layer.renderOrder = -999;
       layer.position.z = -(WATER_LINE_Z + (i * this.waterDepth) / this.waterLevels) - this.waterDepth / this.waterLevels / 2;
+      layer.renderOrder = this.waterLevels - i;
       waterLayers.push(layer);
       this.allWaterMaterials.push(waterMaterial);
     }

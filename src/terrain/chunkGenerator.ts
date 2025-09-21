@@ -77,7 +77,6 @@ export class ChunkGenerator extends BetterObject3D {
     const terrain = new Terrain({ position, lod, noiseFunc: this.noiseFunc, mapGenerationData: this.mapGenerationData });
     this.chunks.push({ position, terrain, lod });
     this.add(terrain);
-    terrain.init();
   }
 
   destroyChunk(chunkOrPosition: Chunk | Vector2) {
