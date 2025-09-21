@@ -110,8 +110,6 @@ export class ThirdPersonCamera extends BetterObject3D {
   getSomeTargetPosition(target: BetterObject3D): Vector3 {
     if (target.rigidBody) {
       return new Vector3(target.rigidBody.translation());
-    } else if (target instanceof Ship) {
-      return new Vector3(target.helm.rigidBody!.translation());
     } else {
       return new Vector3(target.position);
     }

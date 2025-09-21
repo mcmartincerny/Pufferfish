@@ -3,7 +3,6 @@ import { clamp, createTimeStats, debugRigidBody, degToRad, DragRayCache, log1000
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 import { currentDeltaTime, world } from "../Globals";
-import { Ship } from "./Ship";
 import { Euler, Vector3Like } from "three";
 
 const BUOYANCY_FACTOR = 33;
@@ -20,6 +19,7 @@ export class BuoyantObject extends BetterObject3D {
   percentageSubmerged = 0;
   maxLengthFromCenter = 0; // furthest part from the center of the object
   dragCache: DragRayCache | null = null;
+  isShip = false;
   constructor({ size = OBJECT_SIZE }: { size?: number } = {}) {
     super();
     this.size = size;
@@ -75,7 +75,7 @@ export class BuoyantObject extends BetterObject3D {
     this.percentageSubmerged = percentageSubmergedPerCollider.reduce((a, b) => a + b, 0) / percentageSubmergedPerCollider.length;
 
     if (velocity.length() > 0.5) {
-      if (this instanceof Ship) {
+      if (this.isShip) {
         // TODO: Remove this in the future
         this.stats.start();
         this.simulateDragInDirectionUsingRaycasting();

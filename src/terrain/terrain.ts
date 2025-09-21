@@ -36,7 +36,8 @@ export class Terrain extends BetterObject3D {
       segments,
       -position.y - CHUNK_SIZE / 2,
       position.x - CHUNK_SIZE / 2,
-      mapGenerationData.mapSize
+      mapGenerationData.mapSize,
+      false
     );
     this.rigidBody = world.createRigidBody(RigidBodyDesc.fixed().setTranslation(position.x, position.y, this.minHeight));
     const colliderDesc = ColliderDesc.heightfield(
@@ -69,44 +70,77 @@ export class Terrain extends BetterObject3D {
 }
 
 // const debug = new Map<number, number>();
-export const hightMapToRGBA = (heightMap: number[]) => {
+
+type ColorStop = {
+  height: number;
+  color: [number, number, number, number]; // RGBA
+};
+
+export const lerpColors = (height: number, colorStops: ColorStop[]): [number, number, number, number] => {
+  // Sort colorStops by height just in case they're not sorted
+  const sortedStops = [...colorStops].sort((a, b) => a.height - b.height);
+
+  // Handle edge cases
+  if (height <= sortedStops[0].height) {
+    return sortedStops[0].color;
+  }
+  if (height >= sortedStops[sortedStops.length - 1].height) {
+    return sortedStops[sortedStops.length - 1].color;
+  }
+
+  // Find the two stops we need to interpolate between
+  for (let i = 0; i < sortedStops.length - 1; i++) {
+    const current = sortedStops[i];
+    const next = sortedStops[i + 1];
+
+    if (height >= current.height && height <= next.height) {
+      // Calculate the interpolation factor (0 to 1)
+      const t = (height - current.height) / (next.height - current.height);
+
+      // Interpolate each color component
+      const r = Math.round(current.color[0] + (next.color[0] - current.color[0]) * t);
+      const g = Math.round(current.color[1] + (next.color[1] - current.color[1]) * t);
+      const b = Math.round(current.color[2] + (next.color[2] - current.color[2]) * t);
+      const a = Math.round(current.color[3] + (next.color[3] - current.color[3]) * t);
+
+      return [r, g, b, a];
+    }
+  }
+
+  // This shouldn't happen if the logic above is correct
+  return [0, 0, 0, 255];
+};
+
+export const hightMapToRGBA = (heightMap: number[], forMapPreview: boolean = false) => {
+  // Define color stops for smooth interpolation
+  const colorStops: ColorStop[] = [
+    { height: 0.0, color: [0, 0, 255, 255] }, // blue (water)
+    { height: 0.55, color: [180, 180, 0, 255] }, // yellow (beach)
+    { height: 0.6, color: [0, 150, 0, 255] }, // light green (grass)
+    { height: 0.7, color: [50, 60, 80, 255] }, // gray (rocks)
+    { height: 0.8, color: [255, 255, 255, 255] }, // white (snow)
+  ];
+
+  const colorStopsForMapPreview: ColorStop[] = [
+    { height: 0.45, color: [0, 0, 255, 255] }, // blue (water)
+    { height: 0.55, color: [180, 180, 0, 255] }, // yellow (beach)
+    { height: 0.6, color: [0, 150, 0, 255] }, // light green (grass)
+    { height: 0.7, color: [50, 60, 80, 255] }, // gray (rocks)
+    { height: 0.8, color: [255, 255, 255, 255] }, // white (snow)
+  ];
+
   // debug should contain key that is rounded to 0.1 digit and value is count of that height
   const rgba = new Uint8ClampedArray(heightMap.length * 4);
   for (let i = 0; i < heightMap.length; i++) {
     const height = heightMap[i];
     // const roundedHeight = Math.round(height * 10) / 10;
     // debug.set(roundedHeight, (debug.get(roundedHeight) ?? 0) + 1);
-    if (height > 0.8) {
-      // white
-      rgba[i * 4] = 255;
-      rgba[i * 4 + 1] = 255;
-      rgba[i * 4 + 2] = 255;
-      rgba[i * 4 + 3] = 255;
-    } else if (height > 0.7) {
-      // gray
-      rgba[i * 4] = 50;
-      rgba[i * 4 + 1] = 60;
-      rgba[i * 4 + 2] = 80;
-      rgba[i * 4 + 3] = 255;
-    } else if (height > 0.55) {
-      // light green
-      rgba[i * 4] = 0;
-      rgba[i * 4 + 1] = 150;
-      rgba[i * 4 + 2] = 0;
-      rgba[i * 4 + 3] = 255;
-    } else if (height > 0.4) {
-      // yellow
-      rgba[i * 4] = 180;
-      rgba[i * 4 + 1] = 180;
-      rgba[i * 4 + 2] = 0;
-      rgba[i * 4 + 3] = 255;
-    } else {
-      // blue
-      rgba[i * 4] = 0;
-      rgba[i * 4 + 1] = 0;
-      rgba[i * 4 + 2] = 255;
-      rgba[i * 4 + 3] = 255;
-    }
+
+    const [r, g, b, a] = lerpColors(height, forMapPreview ? colorStopsForMapPreview : colorStops);
+    rgba[i * 4] = r;
+    rgba[i * 4 + 1] = g;
+    rgba[i * 4 + 2] = b;
+    rgba[i * 4 + 3] = a;
   }
   return rgba;
 };
@@ -118,8 +152,8 @@ export const generateHeightMap = (
   segments: number,
   xOffset: number,
   yOffset: number,
-  wholeMapSize?: number,
-  rightToLeft?: boolean
+  wholeMapSize: number,
+  rightToLeft: boolean
 ) => {
   generationCount++;
   const heightMap = new Array(segments * segments).fill(0);
@@ -138,24 +172,39 @@ export const generateHeightMap = (
       height = (clamp(height, -1, 1) + 1) / 2;
       height = height * height; // make it more exponential but smaller in average
 
-      if (wholeMapSize) {
-        const half = wholeMapSize / 2;
+      const half = wholeMapSize / 2;
 
-        // distance from center (0,0)
-        const distX = Math.abs(worldX);
-        const distY = Math.abs(worldY);
-        const dist = Math.sqrt(distX * distX + distY * distY);
+      // distance from center (0,0)
+      const distX = Math.abs(worldX);
+      const distY = Math.abs(worldY);
+      const dist = Math.sqrt(distX * distX + distY * distY);
 
-        // normalized 0 → 1 (center → edge)
-        const norm = clamp(dist / half, 0, 1);
+      // normalized 0 → 1 (center → edge)
+      const norm = clamp(dist / half, 0, 1);
 
-        // start falloff only after 90% of the radius
-        const edgeStart = 0.8;
-        if (norm > edgeStart) {
-          const t = (norm - edgeStart) / (1 - edgeStart); // remap to 0→1
-          height *= 1 - t * t * t; // quadratic fade
-        }
+      // start falloff only after 80% of the radius
+      const edgeStart = 0.8;
+      if (norm > edgeStart) {
+        const t = (norm - edgeStart) / (1 - edgeStart); // remap to 0→1
+        height *= 1 - t * t * t; // quadratic fade
       }
+
+      // Height snapping to a few steps
+      // const stepsToSnap = [0.55];
+      // const differenceToSnap = 0.02;
+      // const differenceToLerp = 0.05;
+
+      // for (const step of stepsToSnap) {
+      //   const dist = Math.abs(height - step);
+
+      //   if (dist < differenceToSnap) {
+      //     height = step;
+      //   } else if (dist < differenceToLerp) {
+      //     const t = 1 - dist / differenceToLerp; // 1 near, 0 far
+      //     const smoothT = t * t * (3 - 2 * t); // smoothstep easing
+      //     height = height + (step - height) * smoothT;
+      //   }
+      // }
 
       const adjustedY = rightToLeft ? segments - 1 - y : y;
       heightMap[x + adjustedY * segments] = height;

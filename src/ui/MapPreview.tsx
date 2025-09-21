@@ -48,7 +48,7 @@ export const MapPreview = ({ mapSize, seed, onClick }: MapPreviewProps) => {
     canvas.height = calculatedWidth;
     const noiseFunc = createNoise2D(alea(seed));
     const heightMap = generateHeightMap(noiseFunc, mapSize, mapSize, canvas.width, -mapSize / 2, -mapSize / 2, mapSize, true);
-    const rgba = hightMapToRGBA(heightMap);
+    const rgba = hightMapToRGBA(heightMap, true);
     const imageData = new ImageData(rgba, canvas.width, canvas.width);
     ctx.putImageData(imageData, 0, 0);
 

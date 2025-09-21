@@ -231,7 +231,7 @@ export class DragRayCache {
         if (!hit) continue;
 
         const hitPointWorld = ray.pointAt(hit.timeOfImpact);
-        debugRigidBody(hitPointWorld, `hitPointWorld - ${x} - ${y}`);
+        // debugRigidBody(hitPointWorld, `hitPointWorld - ${x} - ${y}`);
         const normalWorld = new Vector3(hit.normal);
 
         // Convert to body-local coordinates and store that in cache
