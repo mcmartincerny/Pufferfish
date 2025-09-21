@@ -61,7 +61,7 @@ export class BuildCamera extends BetterObject3D {
         shipProps.position = this.target.position;
         shipProps.rotation = new Quaternion().setFromEuler(this.target.rotation);
         this.buildable = new BlueprintBuildable(shipProps);
-        this.add(this.buildable);
+        scene.add(this.buildable);
         this.cameraSwitcher.setTarget(this.buildable);
         previousTarget.dispose();
       }

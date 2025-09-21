@@ -121,7 +121,6 @@ const init = (mapGenerationData: MapGenerationData) => {
   outlinePass.usePatternTexture = false;
   outlinePass.visibleEdgeColor.set("#ffffff");
   outlinePass.hiddenEdgeColor.set("#858585");
-  // outlinePass.selectedObjects = [person];
   composer.addPass(outlinePass);
 
   const outputPass = new OutputPass();
