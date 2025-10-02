@@ -49,6 +49,7 @@ import { MapGenerationData } from "./ui/NewMap.tsx";
 import { BuildMenu } from "./ui/building/BuildMenu.tsx";
 import { GameStore } from "./ui/GameContext.tsx";
 import { defaultShipBlueprint } from "./objects/Ship.ts";
+import { ObjectMouseEventManager } from "./objects/ObjectMouseEventManager.ts";
 await RAPIER.init();
 
 const stats = new Stats();
@@ -102,6 +103,8 @@ const init = (mapGenerationData: MapGenerationData) => {
   setWorld(world);
   const cameraSwitcher = new CameraSwitcher(canvas);
   const camera = cameraSwitcher.camera;
+  ObjectMouseEventManager.init(camera, canvas);
+
   const pixelRatio = window.devicePixelRatio;
   const ResolutionScalingFactor = 2; // TODO: get this from settings
   const pixelRatioWithSuperSampling = pixelRatio * ResolutionScalingFactor;
@@ -259,6 +262,7 @@ const init = (mapGenerationData: MapGenerationData) => {
     gui.destroy();
     cameraSwitcher.dispose();
     resetDebugRigidBodies();
+    ObjectMouseEventManager.getInstance().dispose();
     console.log("cleanup complete");
   };
 };
