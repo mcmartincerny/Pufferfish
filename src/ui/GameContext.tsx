@@ -1,14 +1,8 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { Vector3 } from "../helpers";
+import { ShipPartInfo } from "../objects/ShipParts";
 
-// Keep this aligned with ShipPartInfo structure without importing across layers
-export type SelectedItem = {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  price: number;
-  weight: number;
-};
+export type SelectedItem = ShipPartInfo;
 
 // Core state
 export type GameMode = "third_person" | "build";
@@ -16,12 +10,13 @@ export type GameState = {
   mode: GameMode;
   building: {
     selectedItem: SelectedItem | null;
+    mouseNewPartPosition: Vector3 | null;
   };
 };
 
 export const initialGameState: GameState = {
   mode: "third_person",
-  building: { selectedItem: null },
+  building: { selectedItem: null, mouseNewPartPosition: null },
 };
 
 deepFreeze(initialGameState);
