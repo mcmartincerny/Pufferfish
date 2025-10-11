@@ -1,6 +1,6 @@
 import RAPIER, { QueryFilterFlags, Ray, World } from "@dimforge/rapier3d-compat";
 import { world } from "./Globals";
-import { Euler, Mesh, Quaternion as QuaternionClass, QuaternionLike, Scene, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
+import { Euler, Mesh, Object3D, Quaternion as QuaternionClass, QuaternionLike, Scene, Vector2, Vector3 as Vector3Class, Vector3Like } from "three";
 // import { Quaternion as QuaternionClass } from "three";
 
 export function clamp(num: number, min: number, max: number) {
@@ -291,4 +291,54 @@ function hasDispose(object: any): object is { dispose: (...args: any) => void } 
 
 function isMesh(object: any): object is Mesh {
   return object && object.isMesh;
+}
+
+export const animatePositionTo = (object: Object3D, toPosition: Vector3, duration: number, timingFunction?: (progress: number) => number) => {
+  const startPosition = object.position.clone();
+  const startTime = performance.now();
+  const animate = () => {
+    const currentTime = performance.now();
+    const progress = clamp((currentTime - startTime) / duration, 0, 1);
+    if (progress >= 1) {
+      object.position.copy(toPosition);
+      return;
+    }
+    object.position.lerpVectors(startPosition, toPosition, timingFunction ? timingFunction(progress) : progress);
+    requestAnimationFrame(animate);
+  };
+  requestAnimationFrame(animate);
+};
+
+export const animateRotationTo = (object: Object3D, toRotation: Euler, duration: number, timingFunction?: (progress: number) => number) => {
+  const startRotation = object.rotation.clone();
+  const startTime = performance.now();
+  const animate = () => {
+    const currentTime = performance.now();
+    const progress = clamp((currentTime - startTime) / duration, 0, 1);
+    if (progress >= 1) {
+      object.rotation.set(toRotation.x, toRotation.y, toRotation.z, toRotation.order);
+      return;
+    }
+    const t = timingFunction ? timingFunction(progress) : progress;
+    const x = startRotation.x + (toRotation.x - startRotation.x) * t;
+    const y = startRotation.y + (toRotation.y - startRotation.y) * t;
+    const z = startRotation.z + (toRotation.z - startRotation.z) * t;
+    object.rotation.set(x, y, z, startRotation.order);
+    requestAnimationFrame(animate);
+  };
+  requestAnimationFrame(animate);
+};
+
+export function debounceOnlyLastCall<T extends (...args: any[]) => void>(func: T, delay: number): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return function (...args: Parameters<T>) {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, delay);
+  };
 }

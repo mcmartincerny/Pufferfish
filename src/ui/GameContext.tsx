@@ -11,42 +11,34 @@ export type GameState = {
   building: {
     selectedItem: SelectedItem | null;
     mouseNewPartPosition: Vector3 | null;
+    placeRequestedAt: number;
   };
 };
 
 export const initialGameState: GameState = {
   mode: "third_person",
-  building: { selectedItem: null, mouseNewPartPosition: null },
+  building: { selectedItem: null, mouseNewPartPosition: null, placeRequestedAt: 0 },
 };
 
 deepFreeze(initialGameState);
 
-// Type-level utilities to infer dot-paths and their values from GameState
-type Primitive = string | number | boolean | symbol | bigint | null | undefined;
-type NonObject = Primitive | ((...args: unknown[]) => unknown) | Date | RegExp | Array<unknown>;
+// Strongly-typed path map (explicit to avoid deep/circular type expansion)
+type PathMap = {
+  mode: GameMode;
+  "building.selectedItem": SelectedItem | null;
+  "building.mouseNewPartPosition": Vector3 | null;
+  "building.placeRequestedAt": number;
+};
 
-type DotPath<T> = T extends NonObject
-  ? never
-  : {
-      [K in Extract<keyof T, string>]: T[K] extends NonObject ? K : K | `${K}.${DotPath<T[K]>}`;
-    }[Extract<keyof T, string>];
-
-type PathValue<T, P extends string> = P extends `${infer K}.${infer Rest}`
-  ? K extends keyof T
-    ? PathValue<T[K], Rest>
-    : never
-  : P extends keyof T
-  ? T[P]
-  : never;
-
-export type GamePath = DotPath<GameState>;
+export type GamePath = keyof PathMap;
+type PathValue<P extends GamePath> = PathMap[P];
 
 // Utility helpers for dot-path access with immutable updates
 function getByPath<TValue>(obj: unknown, path: string): TValue {
   return path.split(".").reduce((acc: unknown, key: string) => (acc as any)?.[key], obj as any) as TValue;
 }
 
-function setByPath<P extends GamePath>(obj: GameState, path: P, value: PathValue<GameState, P>): void {
+function setByPath<P extends GamePath>(obj: GameState, path: P, value: PathValue<P>): void {
   const keys = path.split(".");
   let cursor: any = obj;
   for (let i = 0; i < keys.length - 1; i++) {
@@ -80,11 +72,11 @@ export class GameStore {
     return this.state;
   }
 
-  get<P extends GamePath>(path: P): PathValue<GameState, P> {
-    return getByPath<PathValue<GameState, P>>(this.state, path);
+  get<P extends GamePath>(path: P): PathValue<P> {
+    return getByPath<PathValue<P>>(this.state, path);
   }
 
-  set<P extends GamePath>(path: P, value: PathValue<GameState, P>): void {
+  set<P extends GamePath>(path: P, value: PathValue<P>): void {
     const prev = this.get(path);
     if (isSameValue(prev, value)) return;
     setByPath(this.state, path, value);
@@ -95,12 +87,12 @@ export class GameStore {
     }
   }
 
-  update<P extends GamePath>(path: P, updater: (prev: PathValue<GameState, P>) => PathValue<GameState, P>) {
+  update<P extends GamePath>(path: P, updater: (prev: PathValue<P>) => PathValue<P>) {
     const prev = this.get(path);
     this.set(path, updater(prev));
   }
 
-  subscribe<P extends GamePath>(path: P, listener: (value: PathValue<GameState, P>) => void): () => void {
+  subscribe<P extends GamePath>(path: P, listener: (value: PathValue<P>) => void): () => void {
     const set = this.listeners.get(path) ?? new Set<(v: unknown) => void>();
     const typed = listener as unknown as (v: unknown) => void;
     set.add(typed);
@@ -130,12 +122,12 @@ export class GameStore {
 // Accessor for the singleton store from hooks/components
 const useStoreInstance = () => GameStore.getInstance();
 
-export function useGameValue<P extends GamePath>(path: P): [PathValue<GameState, P>, (v: PathValue<GameState, P>) => void] {
+export function useGameValue<P extends GamePath>(path: P): [PathValue<P>, (v: PathValue<P>) => void] {
   const store = useStoreInstance();
   const subscribe = useCallback((onChange: () => void) => store.subscribe(path, () => onChange()), [store, path]);
   const getSnapshot = useCallback(() => store.get(path), [store, path]);
-  const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as PathValue<GameState, P>; // TODO: Maybe remove the third argument?
-  const set = useCallback((v: PathValue<GameState, P>) => store.set(path, v), [store, path]);
+  const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as PathValue<P>; // TODO: Maybe remove the third argument?
+  const set = useCallback((v: PathValue<P>) => store.set(path, v), [store, path]);
   return [value, set];
 }
 

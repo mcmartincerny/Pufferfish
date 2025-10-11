@@ -94,7 +94,7 @@ const init = (mapGenerationData: MapGenerationData) => {
   console.log("init");
   const gui = new GUI();
   gui.$title.textContent = "Debug";
-  // gui.close();
+  gui.close();
   setGui(gui);
   const canvas = document.querySelector("#mainCanvas") as HTMLCanvasElement;
   const scene = new Scene();

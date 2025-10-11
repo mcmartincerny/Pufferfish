@@ -62,7 +62,6 @@ export class IconRendererManager {
 
   private startAnimation() {
     if (this.animationId) return;
-    console.log("startAnimation");
     const animate = () => {
       if (!this.renderer) return;
 
