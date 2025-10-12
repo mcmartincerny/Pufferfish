@@ -257,7 +257,7 @@ export class DragRayCache {
 
 export function destroySceneObjects(scene: Scene) {
   scene.traverse((object) => {
-    console.log("disposing", object);
+    // console.log("disposing", object);
     if (hasDispose(object)) {
       object.dispose(false);
     }

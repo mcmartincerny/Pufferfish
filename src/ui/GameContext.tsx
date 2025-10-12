@@ -1,13 +1,21 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Vector3 } from "../helpers";
 import { ShipPartInfo } from "../objects/ShipParts";
+import { BetterObject3D } from "../objects/BetterObject3D";
 
 export type SelectedItem = ShipPartInfo;
 
 // Core state
 export type GameMode = "third_person" | "build";
+export type ThirdPersonCameraState = { yaw: number; pitch: number; distance: number; zOffset: number };
+export type BuildCameraState = { yaw: number; pitch: number; distance: number };
 export type GameState = {
   mode: GameMode;
+  camera: {
+    target: BetterObject3D | null;
+    thirdPerson: ThirdPersonCameraState;
+    build: BuildCameraState;
+  };
   building: {
     selectedItem: SelectedItem | null;
     mouseNewPartPosition: Vector3 | null;
@@ -17,6 +25,11 @@ export type GameState = {
 
 export const initialGameState: GameState = {
   mode: "third_person",
+  camera: {
+    target: null,
+    thirdPerson: { yaw: 0, pitch: 0, distance: 10, zOffset: 2 },
+    build: { yaw: Math.PI / 4, pitch: Math.PI / 6, distance: 10 },
+  },
   building: { selectedItem: null, mouseNewPartPosition: null, placeRequestedAt: 0 },
 };
 
@@ -25,6 +38,9 @@ deepFreeze(initialGameState);
 // Strongly-typed path map (explicit to avoid deep/circular type expansion)
 type PathMap = {
   mode: GameMode;
+  "camera.target": BetterObject3D | null;
+  "camera.thirdPerson": ThirdPersonCameraState;
+  "camera.build": BuildCameraState;
   "building.selectedItem": SelectedItem | null;
   "building.mouseNewPartPosition": Vector3 | null;
   "building.placeRequestedAt": number;
@@ -111,7 +127,6 @@ export class GameStore {
     // notify all listeners
     [...this.listeners.entries()].forEach(([path, listener]) =>
       listener.forEach((l) => {
-        console.log("notifying listener", path, this.get(path as GamePath), l);
         l(this.get(path as GamePath));
       })
     );

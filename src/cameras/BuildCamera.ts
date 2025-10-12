@@ -1,18 +1,12 @@
-import { Quaternion, Vector3, clamp, degToRad } from "../helpers";
+import { Vector3, clamp, degToRad } from "../helpers";
 import { BetterObject3D } from "../objects/BetterObject3D";
 import { PerspectiveCamera } from "three";
-import { CameraSwitcher } from "./CameraSwitcher";
-import { Blueprint, BlueprintBuildable } from "../objects/BlueprintBuildable";
-import { ShipPlayer } from "../objects/ShipPlayer";
-import { scene } from "../Globals";
-import { ShipProps } from "../objects/Ship";
+import { GameStore } from "../ui/GameContext";
 
 export class BuildCamera extends BetterObject3D {
   camera: PerspectiveCamera;
   _target!: BetterObject3D;
   canvas: HTMLCanvasElement;
-  cameraSwitcher: CameraSwitcher;
-  buildable?: BlueprintBuildable;
 
   // Camera configuration
   distance = 10;
@@ -32,18 +26,19 @@ export class BuildCamera extends BetterObject3D {
   lastMouseX = 0;
   lastMouseY = 0;
 
-  constructor(camera: PerspectiveCamera, target: BetterObject3D, canvas: HTMLCanvasElement, cameraSwitcher: CameraSwitcher) {
+  constructor(camera: PerspectiveCamera, canvas: HTMLCanvasElement) {
     super();
     this.camera = camera;
     this.canvas = canvas;
-    this.target = target;
-    this.cameraSwitcher = cameraSwitcher;
     // Set initial rotation to look at target from a nice angle
     this.yaw = Math.PI / 4; // 45 degrees
     this.pitch = Math.PI / 6; // 30 degrees
   }
 
   get target() {
+    if (!this._target) {
+      throw new Error("Target of BuildCamera is not set");
+    }
     return this._target;
   }
 
@@ -51,35 +46,33 @@ export class BuildCamera extends BetterObject3D {
     this._target = newTarget;
   }
 
+  private unsubscribeTarget?: () => void;
+
   setActive(active: boolean) {
     if (active) {
+      // Restore persisted config and subscribe to target
+      const store = GameStore.getInstance();
+      const saved = store.get("camera.build");
+      if (saved) {
+        this.yaw = saved.yaw;
+        this.pitch = saved.pitch;
+        this.distance = saved.distance;
+      }
+      const currentTarget = store.get("camera.target");
+      if (currentTarget) this.target = currentTarget;
+      this.unsubscribeTarget = store.subscribe("camera.target", (t) => {
+        if (t) this.target = t;
+      });
       // Add event listeners
       this.setupEventListeners();
-      if ("shipProps" in this.target) {
-        const shipProps = this.target.shipProps as ShipProps;
-        const previousTarget = this.target;
-        shipProps.position = this.target.position;
-        shipProps.rotation = new Quaternion().setFromEuler(this.target.rotation);
-        this.buildable = new BlueprintBuildable(shipProps);
-        scene.add(this.buildable);
-        this.cameraSwitcher.setTarget(this.buildable);
-        previousTarget.dispose();
-      }
     } else {
+      // Persist config
+      const store = GameStore.getInstance();
+      store.set("camera.build", { yaw: this.yaw, pitch: this.pitch, distance: this.distance });
       // Remove event listeners
       this.removeEventListeners();
-      if (this.buildable) {
-        if (this.buildable.shipProps.blueprint?.isShip) {
-          const ship = new ShipPlayer(this.buildable.shipProps);
-          scene.add(ship);
-          this.cameraSwitcher.setTarget(ship);
-        } else {
-          console.error("Buildable is not a ship - implement building fixed objects in the future");
-          return;
-        }
-        this.buildable.dispose();
-        this.buildable = undefined;
-      }
+      this.unsubscribeTarget?.();
+      this.unsubscribeTarget = undefined;
     }
   }
 

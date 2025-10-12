@@ -1,9 +1,7 @@
-import RAPIER from "@dimforge/rapier3d-compat";
-import { world } from "../Globals";
-import { clamp, degToRad, Vector3 } from "../helpers";
+import { degToRad, Vector3 } from "../helpers";
 import { BetterObject3D } from "../objects/BetterObject3D";
 import { MathUtils, PerspectiveCamera } from "three";
-import { Ship } from "../objects/Ship";
+import { GameStore } from "../ui/GameContext";
 
 export class ThirdPersonCamera extends BetterObject3D {
   camera: PerspectiveCamera;
@@ -28,11 +26,10 @@ export class ThirdPersonCamera extends BetterObject3D {
   maxZOffset = 7;
   zScrollStep = 0.5;
 
-  constructor(camera: PerspectiveCamera, target: BetterObject3D, canvas: HTMLCanvasElement) {
+  constructor(camera: PerspectiveCamera, canvas: HTMLCanvasElement) {
     super();
     this.camera = camera;
     this.canvas = canvas;
-    this.target = target;
   }
 
   get target() {
@@ -43,18 +40,42 @@ export class ThirdPersonCamera extends BetterObject3D {
     this._target = newTarget;
   }
 
+  private unsubscribeTarget?: () => void;
+
   setActive(active: boolean) {
     if (active) {
+      // Restore persisted config
+      const store = GameStore.getInstance();
+      const saved = store.get("camera.thirdPerson");
+      if (saved) {
+        this.yaw = saved.yaw;
+        this.pitch = saved.pitch;
+        this.distance = saved.distance;
+        this.zOffset = saved.zOffset;
+      }
+      // Adopt current target and subscribe for changes
+      const currentTarget = store.get("camera.target");
+      if (currentTarget) this.target = currentTarget;
+      this.unsubscribeTarget = store.subscribe("camera.target", (t) => {
+        if (t) this.target = t;
+      });
+
       (document.activeElement as HTMLElement)?.blur();
       document.addEventListener("pointerlockchange", this.pointerLockChangeListener);
       this.canvas.addEventListener("click", this.canvasClickListener);
       this.canvas.addEventListener("wheel", this.wheelListener, { passive: false });
     } else {
+      // Persist current config
+      const store = GameStore.getInstance();
+      store.set("camera.thirdPerson", { yaw: this.yaw, pitch: this.pitch, distance: this.distance, zOffset: this.zOffset });
+
       document.exitPointerLock();
       document.removeEventListener("pointerlockchange", this.pointerLockChangeListener);
       this.canvas.removeEventListener("click", this.canvasClickListener);
       this.canvas.removeEventListener("mousemove", this.mouseMoveListener);
       this.canvas.removeEventListener("wheel", this.wheelListener);
+      this.unsubscribeTarget?.();
+      this.unsubscribeTarget = undefined;
     }
   }
 

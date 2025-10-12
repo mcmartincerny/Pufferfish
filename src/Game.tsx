@@ -7,22 +7,18 @@ import {
   CineonToneMapping,
   ColorSpace,
   CustomToneMapping,
-  DepthTexture,
   DirectionalLight,
   HemisphereLight,
   LinearToneMapping,
   Mesh,
-  MeshPhongMaterial,
   MeshStandardMaterial,
   NeutralToneMapping,
   NoToneMapping,
   Object3D,
   PerspectiveCamera,
-  PlaneGeometry,
   ReinhardToneMapping,
   Scene,
   ToneMapping,
-  UnsignedShortType,
   Vector2,
   WebGLRenderer,
 } from "three";
@@ -30,7 +26,7 @@ import Stats from "stats.js";
 import GUI from "lil-gui";
 import { BetterObject3D } from "./objects/BetterObject3D";
 import { MAP_GENERATION_DATA_DEFAULT, setCurrentDeltaTime, setGui, setOutlinePass, setScene, setWorld } from "./Globals.ts";
-import { createTimeStats, destroySceneObjects, Quaternion, resetDebugRigidBodies, Vector3 } from "./helpers";
+import { createTimeStats, destroySceneObjects, resetDebugRigidBodies, Vector3 } from "./helpers";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
@@ -42,14 +38,13 @@ import { Water } from "./objects/Water.ts";
 import { BuoyantObject } from "./objects/BuoyantObject.ts";
 import { PhysicsHooks } from "./PhysicsHooks.ts";
 import { CustomSky } from "./objects/Sky.ts";
-import { ShipPlayer } from "./objects/ShipPlayer.ts";
 import { ChunkGenerator } from "./terrain/chunkGenerator.ts";
 import { MainMenu } from "./ui/MainMenu.tsx";
 import { MapGenerationData } from "./ui/NewMap.tsx";
 import { BuildMenu } from "./ui/building/BuildMenu.tsx";
 import { GameStore } from "./ui/GameContext.tsx";
-import { defaultShipBlueprint } from "./objects/Ship.ts";
 import { ObjectMouseEventManager } from "./objects/ObjectMouseEventManager.ts";
+import { SceneManager } from "./objects/SceneManager.ts";
 await RAPIER.init();
 
 const stats = new Stats();
@@ -70,6 +65,7 @@ export const Game = () => {
   useEffect(() => {
     GameStore.getInstance().resetToInitialState();
     return init(mapGenerationData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset]);
 
   useEffect(() => {
@@ -202,13 +198,8 @@ const init = (mapGenerationData: MapGenerationData) => {
   cube2Object.rigidBody = cube2RigidBody;
   scene.add(cube2Object);
 
-  const ship = new ShipPlayer({
-    position: new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10),
-    rotation: new Quaternion(),
-    blueprint: defaultShipBlueprint,
-  });
-  scene.add(ship);
-  cameraSwitcher.setTarget(ship);
+  const sceneManager = new SceneManager(new Vector3(mapGenerationData.spawnPoint.x, mapGenerationData.spawnPoint.y, 10));
+  scene.add(sceneManager);
 
   const water = new Water();
   scene.add(water);
