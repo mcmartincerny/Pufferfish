@@ -79,6 +79,8 @@ export class BlueprintBuildable extends BetterObject3D {
 
   visualizationPart: BetterObject3D | null = null;
   visualizationPartId: string | null = null;
+  private visualizationTargetPosition: Vector3 | null = null;
+  private visualizationTargetRotation: Euler | null = null;
   visualizeNewPart = (position: Vector3 | null) => {
     if (position == null) {
       if (this.visualizationPart) {
@@ -86,24 +88,27 @@ export class BlueprintBuildable extends BetterObject3D {
         this.visualizationPart = null;
         this.visualizationPartId = null;
       }
+      this.visualizationTargetPosition = null;
+      this.visualizationTargetRotation = null;
       return;
     }
     const partInfo = this.gameStore.get("building.selectedItem");
     if (partInfo == null) return;
     if (this.visualizationPartId === partInfo.id && this.visualizationPart) {
-      // this.visualizationPart.position.copy(position);
+      this.visualizationTargetPosition = position.clone();
       animatePositionTo(this.visualizationPart, position, 100);
       return;
     }
     const part = { part: partInfo.constructor, position, rotation: new Euler(0, 0, 0) };
     this.visualizationPart = this.createAndAddPart(part, false);
     this.visualizationPartId = partInfo.id;
+    this.visualizationTargetPosition = position.clone();
+    this.visualizationTargetRotation = this.visualizationPart.rotation.clone();
   };
 
   debouncedVisualizeNewPart = debounceOnlyLastCall(this.visualizeNewPart, 0);
 
   private onKeyDown(event: KeyboardEvent) {
-    console.log("onKeyDown", event.key);
     if (!this.visualizationPart) return;
     const step = Math.PI / 2; // 90 degrees
     // Snap helper to avoid drift
@@ -113,7 +118,6 @@ export class BlueprintBuildable extends BetterObject3D {
     let rx = snap(current.x);
     let ry = snap(current.y);
     let rz = snap(current.z);
-    console.log(`current x:%s, y:%s, z:%s`, current.x, current.y, current.z);
     if (key === "w") rx = snap(current.x + step);
     else if (key === "s") rx = snap(current.x - step);
     else if (key === "a") ry = snap(current.y + step);
@@ -121,18 +125,20 @@ export class BlueprintBuildable extends BetterObject3D {
     else if (key === "q") rz = snap(current.z + step);
     else if (key === "e") rz = snap(current.z - step);
     else return;
-    console.log(`new x:%s, y:%s, z:%s`, rx, ry, rz);
-
-    animateRotationTo(this.visualizationPart, new Euler(rx, ry, rz), 100);
+    const targetEuler = new Euler(rx, ry, rz);
+    this.visualizationTargetRotation = targetEuler.clone();
+    animateRotationTo(this.visualizationPart, targetEuler, 100);
   }
 
   private placeVisualizationPart() {
     const selected = this.gameStore.get("building.selectedItem");
     if (!selected || !this.visualizationPart) return;
+    const finalPosition = this.visualizationTargetPosition ?? this.visualizationPart.position;
+    const finalRotationEuler = this.visualizationTargetRotation ?? this.visualizationPart.rotation;
     const part: BlueprintPart = {
       part: selected.constructor,
-      position: this.visualizationPart.position.clone(),
-      rotation: new Euler(this.visualizationPart.rotation.x, this.visualizationPart.rotation.y, this.visualizationPart.rotation.z),
+      position: finalPosition,
+      rotation: new Euler(finalRotationEuler.x, finalRotationEuler.y, finalRotationEuler.z),
     };
     const instance = this.createAndAddPart(part, true);
     this.parts.push(instance);
@@ -166,6 +172,10 @@ export class BlueprintBuildable extends BetterObject3D {
     this.rotation.y = this.rotateYStart * rotateFactor;
   }
 
+  validateParts() {
+    continue here;
+  }
+
   get shipProps(): ShipProps {
     const shipPropsCopy: ShipProps = {
       rotation: new Quaternion().setFromEuler(this.rotation),
@@ -184,7 +194,7 @@ export class BlueprintBuildable extends BetterObject3D {
     return shipPropsCopy;
   }
 
-  set shipProps(shipProps: ShipProps) {
+  set shipProps(_shipProps: ShipProps) {
     throw new Error("Cannot set shipProps on BlueprintBuildable");
   }
 
@@ -223,9 +233,9 @@ class PlacementBox extends BetterObject3D {
       this.planes.push(plane);
       this.add(plane);
       mouseEventManager.addHoverEventListener(plane, (hovered) => {
-        const selected = gameStore.get("building.selectedItem");
+        const deleteMode = gameStore.get("building.deleteMode");
         if (hovered) {
-          if (selected == null) {
+          if (deleteMode) {
             // Deletion mode: show ALL panels in red
             this.planes.forEach((p) => {
               const mat = p.material as MeshPhongMaterial;
@@ -241,7 +251,7 @@ class PlacementBox extends BetterObject3D {
             gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(part.position));
           }
         } else {
-          if (selected == null) {
+          if (deleteMode) {
             // Deletion mode: hide all panels immediately
             this.planes.forEach((p) => ((p.material as MeshPhongMaterial).visible = false));
             gameStore.set("building.mouseNewPartPosition", null);
@@ -253,14 +263,13 @@ class PlacementBox extends BetterObject3D {
         }
       });
       mouseEventManager.addClickEventListener(plane, () => {
-        const selected = gameStore.get("building.selectedItem");
-        if (selected == null) {
-          // Deletion mode: remove this part
+        const { selectedItem, deleteMode } = gameStore.get("building");
+        if (deleteMode) {
           const parent = this.parent;
           if (parent && parent instanceof BlueprintBuildable) {
             parent.removePart(this.part);
           }
-        } else {
+        } else if (selectedItem != null) {
           // Placement mode: ensure latest position and request placement
           gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(part.position));
           gameStore.update("building.placeRequestedAt", (prev) => prev + 1);

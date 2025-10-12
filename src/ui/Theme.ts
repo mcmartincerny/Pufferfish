@@ -1,15 +1,17 @@
 const colors = {
-  pear: "#C2E812",
-  blue: "#337CA0",
+  // pear: "#C2E812",
+  // blue: "#337CA0",
   orange: "#FB6107",
   green: "#317B22",
   ultraWhite: "#FFFFFF",
   white: "#CCDDE2",
-  purple: "#4B296B",
-  black: "#171614",
+  // purple: "#4B296B",
+  // black: "#171614",
   lessBlack: "#24272B",
   blueishBlack: "#0D1821",
   grey: "#606060",
+  // celestialBlue: "#009FFD"
+  danger: "#B40424",
 };
 
 const colorsDark = Object.entries(colors).reduce((acc, [key, value]) => {

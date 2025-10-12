@@ -5,6 +5,7 @@ import { getAllShipParts, getShipPartCategories, ShipPartInfo } from "../../obje
 import { ItemIcon } from "./ItemIcon";
 import { useGameValue } from "../GameContext";
 import { AnimatePresence, motion } from "framer-motion";
+import { ErrorBox } from "../ErrorBox";
 
 enum BuildCategory {
   All = "All",
@@ -70,6 +71,8 @@ export const BuildMenu = () => {
   };
 
   const [selectedItem, setSelectedItem] = useGameValue("building.selectedItem");
+  const [deleteMode, setDeleteMode] = useGameValue("building.deleteMode");
+  const [buildErrors] = useGameValue("building.errors");
 
   const handleItemClick = (item: ShipPartInfo) => {
     // is item already selected?
@@ -77,7 +80,13 @@ export const BuildMenu = () => {
       setSelectedItem(null);
     } else {
       setSelectedItem(item);
+      setDeleteMode(false);
     }
+  };
+
+  const handleDeleteClick = () => {
+    setSelectedItem(null);
+    setDeleteMode(!deleteMode);
   };
 
   return (
@@ -121,6 +130,9 @@ export const BuildMenu = () => {
                 </ItemSlot>
               ))}
             </ItemsGrid>
+            <DeleteButton onClick={handleDeleteClick} deletionEnabled={deleteMode}>
+              {deleteMode ? "End Deletion" : "Delete blocks"}
+            </DeleteButton>
           </BuildMenuContainer>
         )}
       </AnimatePresence>
@@ -138,6 +150,8 @@ export const BuildMenu = () => {
           </PreviewBottom>
         </ItemPreview>
       )}
+
+      {mode === "build" && <ErrorBox header="Build Errors" errors={buildErrors} />}
     </>
   );
 };
@@ -355,4 +369,17 @@ const PreviewWeight = styled.div`
   color: ${theme.colors.ultraWhite};
   font-size: 12px;
   opacity: 0.8;
+`;
+
+const DeleteButton = styled.button<{ deletionEnabled: boolean }>`
+  background-color: ${({ deletionEnabled }) => (deletionEnabled ? theme.colors.orange : theme.colors.danger)};
+  transition: background-color 0.5s;
+  color: ${theme.colors.white};
+  font-size: 20px;
+  border: none;
+  border-radius: 4px;
+  padding: 16px;
+  margin: 16px;
+  margin-top: auto;
+  cursor: pointer;
 `;
