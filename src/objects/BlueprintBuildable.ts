@@ -64,11 +64,34 @@ export class BlueprintBuildable extends BetterObject3D {
     const instance = new Part({ rotation: rotationQuaternion, translation: position });
     this.add(instance);
     if (createPlacementBox) {
-      const placementBox = new PlacementBox(instance);
-      this.add(placementBox);
+      this.createPlacementBoxesForPart(instance);
     }
     this.debouncedValidateParts();
     return instance;
+  }
+
+  private createPlacementBoxesForPart(instance: BetterObject3D) {
+    // Compute how many grid cells the part occupies along each axis (local space)
+    instance.mainMesh?.geometry.computeBoundingBox();
+    const bb = instance.mainMesh?.geometry.boundingBox;
+    if (!bb) return;
+    const sx = Math.max(1, Math.ceil(bb.max.x - bb.min.x));
+    const sy = Math.max(1, Math.ceil(bb.max.y - bb.min.y));
+    const sz = Math.max(1, Math.ceil(bb.max.z - bb.min.z));
+    const rotQuat = new Quaternion().setFromEuler(instance.rotation);
+    // One outline per whole part
+    const outline = new PlacementOutline(instance, new Vector3(0, 0, 0), new Vector3(sx, sy, sz));
+    this.add(outline);
+    for (let ix = 0; ix < sx; ix++) {
+      for (let iy = 0; iy < sy; iy++) {
+        for (let iz = 0; iz < sz; iz++) {
+          const localOffset = new Vector3(-sx / 2 + 0.5 + ix, -sy / 2 + 0.5 + iy, -sz / 2 + 0.5 + iz);
+          const worldOffset = localOffset.applyQuaternion(rotQuat);
+          const panels = new PlacementPlanes(instance, worldOffset);
+          this.add(panels);
+        }
+      }
+    }
   }
 
   removePart(part: BetterObject3D) {
@@ -77,12 +100,14 @@ export class BlueprintBuildable extends BetterObject3D {
     if (index !== -1) this.parts.splice(index, 1);
     part.dispose?.(true);
     this.remove(part);
-    // Remove and dispose the associated placement box
-    const placementBox = this.children.find((child) => child instanceof PlacementBox && child.part === part);
-    if (placementBox) {
-      (placementBox as PlacementBox).dispose(true);
-      this.remove(placementBox);
-    }
+    // Remove and dispose any associated placement panels and outline
+    const placementVisuals = this.children.filter(
+      (child) => (child instanceof PlacementPlanes || child instanceof PlacementOutline) && (child as PlacementPlanes | PlacementOutline).part === part
+    );
+    placementVisuals.forEach((v) => {
+      (v as PlacementPlanes | PlacementOutline).dispose(true);
+      this.remove(v);
+    });
     this.debouncedValidateParts();
   }
 
@@ -90,6 +115,7 @@ export class BlueprintBuildable extends BetterObject3D {
   visualizationPartId: string | null = null;
   private visualizationTargetPosition: Vector3 | null = null;
   private visualizationTargetRotation: Euler | null = null;
+  private visualizationAnchorPosition: Vector3 | null = null;
   visualizeNewPart = (position: Vector3 | null) => {
     if (position == null) {
       if (this.visualizationPart) {
@@ -99,19 +125,28 @@ export class BlueprintBuildable extends BetterObject3D {
       }
       this.visualizationTargetPosition = null;
       this.visualizationTargetRotation = null;
+      this.visualizationAnchorPosition = null;
       return;
     }
+
     const partInfo = this.gameStore.get("building.selectedItem");
     if (partInfo == null) return;
     if (this.visualizationPartId === partInfo.id && this.visualizationPart) {
-      this.visualizationTargetPosition = position.clone();
-      animatePositionTo(this.visualizationPart, position, 100);
+      // Update anchor and recompute rotated offset so the anchor cell stays locked while moving
+      this.visualizationAnchorPosition = position.clone();
+      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, this.visualizationTargetRotation ?? this.visualizationPart.rotation);
+      this.visualizationTargetPosition = position.clone().sub(rotatedOffset);
+      animatePositionTo(this.visualizationPart, this.visualizationTargetPosition, 100);
       return;
     }
     const part = { part: partInfo.constructor, position, rotation: new Euler(0, 0, 0) };
     this.visualizationPart = this.createAndAddPart(part, false);
+    // Initialize anchor lock and place the part so the anchor cell is correct for current rotation
+    this.visualizationAnchorPosition = position.clone();
+    const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, this.visualizationPart.rotation);
+    this.visualizationPart.position.copy(position.clone().sub(rotatedOffset));
     this.visualizationPartId = partInfo.id;
-    this.visualizationTargetPosition = position.clone();
+    this.visualizationTargetPosition = this.visualizationPart.position.clone();
     this.visualizationTargetRotation = this.visualizationPart.rotation.clone();
   };
 
@@ -137,12 +172,24 @@ export class BlueprintBuildable extends BetterObject3D {
     const targetEuler = new Euler(rx, ry, rz);
     this.visualizationTargetRotation = targetEuler.clone();
     animateRotationTo(this.visualizationPart, targetEuler, 100);
+    // Recompute position so the anchor cell stays locked during rotation
+    if (this.visualizationAnchorPosition) {
+      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, targetEuler);
+      const targetPos = this.visualizationAnchorPosition.clone().sub(rotatedOffset);
+      this.visualizationTargetPosition = targetPos;
+      animatePositionTo(this.visualizationPart, targetPos, 100);
+    }
   }
 
   private placeVisualizationPart() {
     const selected = this.gameStore.get("building.selectedItem");
     if (!selected || !this.visualizationPart) return;
-    const finalPosition = this.visualizationTargetPosition ?? this.visualizationPart.position;
+    // Ensure final position respects anchor + rotation
+    let finalPosition = this.visualizationTargetPosition ?? this.visualizationPart.position;
+    if (this.visualizationAnchorPosition) {
+      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, this.visualizationTargetRotation ?? this.visualizationPart.rotation);
+      finalPosition = this.visualizationAnchorPosition.clone().sub(rotatedOffset);
+    }
     const finalRotationEuler = this.visualizationTargetRotation ?? this.visualizationPart.rotation;
     const part: BlueprintPart = {
       part: selected.constructor,
@@ -250,29 +297,16 @@ export class BlueprintBuildable extends BetterObject3D {
 }
 
 // Simple object that will be position over some placed part to show it's edges
-class PlacementBox extends BetterObject3D {
-  lines: LineSegments2;
+class PlacementPlanes extends BetterObject3D {
   planes: Mesh[];
   unsubscribeFunctions: (() => void)[] = [];
-  constructor(public part: BetterObject3D) {
+  constructor(public part: BetterObject3D, private worldOffset: Vector3 = new Vector3(0, 0, 0)) {
     super();
-    this.position.copy(part.position);
-    // this.quaternion.copy(part.quaternion);
-    const geometry = new LineSegmentsGeometry().setPositions(cubePoints.flat().flatMap((point) => [point.x, point.y, point.z]));
-    const material = new LineMaterial({ color: 0xffffff, linewidth: 2 });
-    this.lines = new LineSegments2(geometry, material);
-    this.add(this.lines);
+    this.position.copy(new Vector3(part.position).add(this.worldOffset));
     const planeGeometry = new PlaneGeometry(1, 1);
     this.planes = [];
     const mouseEventManager = ObjectMouseEventManager.getInstance();
     const gameStore = GameStore.getInstance();
-    gameStore.subscribe("building.errors", (errors) => {
-      if (errors.some((error) => error.errorParts?.includes(this.part))) {
-        this.lines.material.color.set(0xff0000);
-      } else {
-        this.lines.material.color.set(0xffffff);
-      }
-    });
     for (const planeData of cubePlanes) {
       const planeMaterial = new MeshPhongMaterial({ color: 0xffffff, transparent: true, visible: false, opacity: 0.6 });
       const plane = new Mesh(planeGeometry, planeMaterial);
@@ -282,10 +316,14 @@ class PlacementBox extends BetterObject3D {
       this.add(plane);
       mouseEventManager.addHoverEventListener(plane, (hovered) => {
         const deleteMode = gameStore.get("building.deleteMode");
+        const allPlanesOfThisPart = this.parent?.children
+          .filter((p) => p instanceof PlacementPlanes && (p as PlacementPlanes).part === this.part)
+          .flatMap((p) => (p as PlacementPlanes).planes);
+        if (!allPlanesOfThisPart) throw new Error("allPlanesOfThisPart is undefined, this should not happen.");
         if (hovered) {
           if (deleteMode) {
             // Deletion mode: show ALL panels in red
-            this.planes.forEach((p) => {
+            allPlanesOfThisPart.forEach((p) => {
               const mat = p.material as MeshPhongMaterial;
               mat.color.set(0xff0000);
               mat.visible = true;
@@ -293,15 +331,15 @@ class PlacementBox extends BetterObject3D {
             gameStore.set("building.mouseNewPartPosition", null);
           } else {
             // Placement mode: show only hovered panel in white
-            this.planes.forEach((p) => ((p.material as MeshPhongMaterial).visible = false));
+            allPlanesOfThisPart.forEach((p) => ((p.material as MeshPhongMaterial).visible = false));
             (plane.material as MeshPhongMaterial).color.set(0xffffff);
             (plane.material as MeshPhongMaterial).visible = true;
-            gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(part.position));
+            gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(this.position));
           }
         } else {
           if (deleteMode) {
             // Deletion mode: hide all panels immediately
-            this.planes.forEach((p) => ((p.material as MeshPhongMaterial).visible = false));
+            allPlanesOfThisPart.forEach((p) => ((p.material as MeshPhongMaterial).visible = false));
             gameStore.set("building.mouseNewPartPosition", null);
           } else {
             // Placement mode: hide this panel
@@ -319,7 +357,7 @@ class PlacementBox extends BetterObject3D {
           }
         } else if (selectedItem != null) {
           // Placement mode: ensure latest position and request placement
-          gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(part.position));
+          gameStore.set("building.mouseNewPartPosition", plane.position.clone().normalize().add(this.position));
           gameStore.update("building.placeRequestedAt", (prev) => prev + 1);
         }
       });
@@ -328,6 +366,34 @@ class PlacementBox extends BetterObject3D {
         mouseEventManager.removeClickEventListener(plane);
       });
     }
+  }
+
+  dispose(removeFromParent?: boolean): void {
+    super.dispose(removeFromParent);
+    this.unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
+    this.unsubscribeFunctions = [];
+  }
+}
+
+class PlacementOutline extends BetterObject3D {
+  lines: LineSegments2;
+  unsubscribeFunctions: (() => void)[] = [];
+  constructor(public part: BetterObject3D, worldOffset: Vector3, scaleXYZ: Vector3) {
+    super();
+    this.position.copy(new Vector3(part.position).add(worldOffset));
+    const geometry = new LineSegmentsGeometry().setPositions(cubePoints.flat().flatMap((point) => [point.x, point.y, point.z]));
+    const material = new LineMaterial({ color: 0xffffff, linewidth: 2 });
+    this.lines = new LineSegments2(geometry, material);
+    this.lines.scale.set(scaleXYZ.x, scaleXYZ.y, scaleXYZ.z);
+    this.add(this.lines);
+    const gameStore = GameStore.getInstance();
+    gameStore.subscribe("building.errors", (errors) => {
+      if (errors.some((error) => error.errorParts?.includes(this.part))) {
+        this.lines.material.color.set(0xff0000);
+      } else {
+        this.lines.material.color.set(0xffffff);
+      }
+    });
   }
 
   dispose(removeFromParent?: boolean): void {
@@ -378,4 +444,18 @@ export type BlueprintPart = {
   position: Vector3;
   rotation: Euler;
   partName?: string;
+};
+
+const getOffsetForBiggerObjects = (instance: BetterObject3D, rotation: Euler | Quaternion) => {
+  instance.mainMesh?.geometry.computeBoundingBox();
+  const boundingBox = instance.mainMesh?.geometry.boundingBox;
+  if (!boundingBox) {
+    throw new Error("Bounding box not found");
+  }
+  const x = -Math.ceil(boundingBox.max.x - boundingBox.min.x) / 2 + 0.5;
+  const y = -Math.ceil(boundingBox.max.y - boundingBox.min.y) / 2 + 0.5;
+  const z = -Math.ceil(boundingBox.max.z - boundingBox.min.z) / 2 + 0.5;
+  const local = new Vector3(x, y, z);
+  const quat = rotation instanceof Quaternion ? rotation : new Quaternion().setFromEuler(rotation);
+  return local.applyQuaternion(quat);
 };

@@ -8,7 +8,17 @@ import { Ship } from "./Ship";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 
-export type BuildablePartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
+export type BuildablePartConstructor =
+  | typeof Helm
+  | typeof WoodenBox
+  | typeof WoodenBox2x1x1
+  | typeof WoodenBox2x2x1
+  | typeof WoodenBox2x2x2
+  | typeof WoodenBox3x3x3
+  | typeof WoodenRamp
+  | typeof LeadBox
+  | typeof Propeller
+  | typeof SmallRudder;
 export type BuildablePartInstance = InstanceType<BuildablePartConstructor>;
 
 export type ShipPartProps = {
@@ -114,6 +124,7 @@ export class Helm extends ShipPart {
 }
 
 export class WoodenBox extends ShipPart {
+  size = [1, 1, 1];
   static getPartInfo(): ShipPartInfo {
     return {
       id: "wooden-box",
@@ -126,10 +137,13 @@ export class WoodenBox extends ShipPart {
     };
   }
 
-  constructor(props: ShipPartProps) {
+  constructor(props: ShipPartProps, size?: [number, number, number]) {
     super({ rotation: props.rotation, translation: props.translation });
-    const geometry = new BoxGeometry(1, 1, 1);
-    const material = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.1) });
+    if (size) {
+      this.size = size;
+    }
+    const geometry = new BoxGeometry(this.size[0], this.size[1], this.size[2]);
+    const material = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.05) });
     const cube = new Mesh(geometry, material);
     this.mainMesh = cube;
     this.add(cube);
@@ -139,7 +153,7 @@ export class WoodenBox extends ShipPart {
     this.ship = ship;
     const rb = ship.rigidBody;
     const collider = world.createCollider(
-      ColliderDesc.cuboid(0.5, 0.5, 0.5)
+      ColliderDesc.cuboid(this.size[0] / 2, this.size[1] / 2, this.size[2] / 2)
         .setTranslation(this.localTranslation.x, this.localTranslation.y, this.localTranslation.z)
         .setRotation(new RAPIER.Quaternion(this.buildRotation.x, this.buildRotation.y, this.buildRotation.z, this.buildRotation.w)),
       rb
@@ -147,6 +161,62 @@ export class WoodenBox extends ShipPart {
     collider.setActiveHooks(ActiveHooks.FILTER_CONTACT_PAIRS);
     collider.setRestitution(0.3);
     collider.setFriction(0.5);
+  }
+}
+
+export class WoodenBox2x1x1 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [2, 1, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-2x1x1",
+      name: "Wooden Box 2x1x1",
+      constructor: WoodenBox2x1x1,
+    };
+  }
+}
+
+export class WoodenBox2x2x1 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [2, 2, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-2x2x1",
+      name: "Wooden Box 2x2x1",
+      constructor: WoodenBox2x2x1,
+    };
+  }
+}
+
+export class WoodenBox2x2x2 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [2, 2, 2]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-2x2x2",
+      name: "Wooden Box 2x2x2",
+      constructor: WoodenBox2x2x2,
+    };
+  }
+}
+
+export class WoodenBox3x3x3 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [3, 3, 3]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-3x3x3",
+      name: "Wooden Box 3x3x3",
+      constructor: WoodenBox3x3x3,
+    };
   }
 }
 
@@ -172,7 +242,7 @@ export class WoodenRamp extends ShipPart {
     const halfWidth = 1 / 2;
     const halfHeight = 1 / 2;
     prismGeometry.translate(-halfLength, halfWidth, -halfHeight);
-    const prismMaterial = new MeshPhongMaterial({ color: 0x44aa88 });
+    const prismMaterial = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.05) });
     const prism = new Mesh(prismGeometry, prismMaterial);
     this.mainMesh = prism;
     this.add(prism);
@@ -205,7 +275,7 @@ export class LeadBox extends WoodenBox {
   }
 
   constructor(props: ShipPartProps) {
-    super(props);
+    super(props, [1, 1, 1]);
     const material = new MeshPhongMaterial({ color: 0x999999 });
     this.mainMesh!.material = material;
   }
@@ -455,7 +525,7 @@ export interface ShipPartInfo {
   constructor: BuildablePartConstructor;
 }
 
-const allShipParts = [Helm, WoodenBox, WoodenRamp, LeadBox, Propeller, SmallRudder];
+const allShipParts = [Helm, WoodenBox, WoodenBox2x1x1, WoodenBox2x2x1, WoodenBox2x2x2, WoodenBox3x3x3, WoodenRamp, LeadBox, Propeller, SmallRudder];
 
 // Function to get all available ship parts
 export function getAllShipParts(): ShipPartInfo[] {
