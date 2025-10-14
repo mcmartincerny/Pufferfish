@@ -4,6 +4,7 @@ import { Game } from "./Game";
 import { Vector3 } from "./helpers";
 import { IconRendererManager } from "./ui/building/ItemRendererManager";
 import { useEffect } from "react";
+import { ToastManager } from "./ui/ToastManager";
 
 Object3D.DEFAULT_UP = new Vector3(0, 0, 1);
 
@@ -26,7 +27,12 @@ function App() {
       document.removeEventListener("contextmenu", contextMenuListener);
     };
   }, []);
-  return <Game />;
+  return (
+    <>
+      <Game />
+      <ToastManager />
+    </>
+  );
 }
 
 export default App;

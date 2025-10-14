@@ -9,6 +9,11 @@ export type SelectedItem = ShipPartInfo;
 export type GameMode = "third_person" | "build";
 export type ThirdPersonCameraState = { yaw: number; pitch: number; distance: number; zOffset: number };
 export type BuildCameraState = { yaw: number; pitch: number; distance: number };
+export type BuildError = {
+  message: string;
+  details: string;
+  errorParts?: BetterObject3D[];
+};
 export type GameState = {
   mode: GameMode;
   camera: {
@@ -21,10 +26,7 @@ export type GameState = {
     mouseNewPartPosition: Vector3 | null;
     placeRequestedAt: number;
     deleteMode: boolean;
-    errors: {
-      message: string;
-      details: string;
-    }[];
+    errors: BuildError[];
   };
 };
 
@@ -40,18 +42,7 @@ export const initialGameState: GameState = {
     mouseNewPartPosition: null,
     placeRequestedAt: 0,
     deleteMode: false,
-    errors: [
-      { message: "Test error", details: "Test details" },
-      { message: "Test error 2", details: "Test details 2 - long test details" },
-      { message: "Test error 3", details: "Test details 3 - even longer test details" },
-      { message: "Test error 4", details: "Test details 4 - even longer test details" },
-      { message: "Test error 5", details: "Test details 5 - even longer test details" },
-      { message: "Test error 6", details: "Test details 6 - even longer test details" },
-      { message: "Test error 7", details: "Test details 7 - even longer test details" },
-      { message: "Test error 8", details: "Test details 8 - even longer test details" },
-      { message: "Test error 9", details: "Test details 9 - even longer test details" },
-      { message: "Test error 10", details: "Test details 10 - even longer test details" },
-    ],
+    errors: [],
   },
 };
 
@@ -68,10 +59,7 @@ type PathMap = {
   "building.mouseNewPartPosition": Vector3 | null;
   "building.placeRequestedAt": number;
   "building.deleteMode": boolean;
-  "building.errors": {
-    message: string;
-    details: string;
-  }[];
+  "building.errors": BuildError[];
 };
 
 export type GamePath = keyof PathMap;

@@ -1,12 +1,17 @@
 import { Euler, Mesh, MeshPhongMaterial, PlaneGeometry } from "three";
 import { animatePositionTo, animateRotationTo, debounceOnlyLastCall, Quaternion, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
-import { ShipPartConstructor } from "./ShipParts";
-import { ShipProps } from "./Ship";
+import { Helm, BuildablePartConstructor } from "./ShipParts";
 import { currentDeltaTime } from "../Globals";
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from "three/examples/jsm/Addons.js";
 import { ObjectMouseEventManager } from "./ObjectMouseEventManager";
-import { GameStore } from "../ui/GameContext";
+import { BuildError, GameStore } from "../ui/GameContext";
+
+export type BuildableData = {
+  blueprint: Blueprint;
+  position: Vector3;
+  rotation: Quaternion;
+};
 
 export class BlueprintBuildable extends BetterObject3D {
   moveUpDistance = 10;
@@ -18,16 +23,18 @@ export class BlueprintBuildable extends BetterObject3D {
   parts: BetterObject3D[] = [];
   gameStore: GameStore;
   unsubscribeFunctions: (() => void)[] = [];
-  private _shipProps: ShipProps;
-  constructor(shipProps: ShipProps) {
+  isShipBlueprint: boolean;
+  private _buildableData: BuildableData;
+  constructor(buildableData: BuildableData) {
     super();
-    this._shipProps = shipProps;
-    this.position.copy(shipProps.position);
-    this.setRotationFromQuaternion(shipProps.rotation);
+    this.gameStore = GameStore.getInstance();
+    this._buildableData = buildableData;
+    this.isShipBlueprint = buildableData.blueprint.isShip;
+    this.position.copy(buildableData.position);
+    this.setRotationFromQuaternion(buildableData.rotation);
     this.rotateXStart = this.rotation.x;
     this.rotateYStart = this.rotation.y;
-    this.assembleParts(shipProps.blueprint.parts);
-    this.gameStore = GameStore.getInstance();
+    this.assembleParts(buildableData.blueprint.parts);
     const unsubscribe = this.gameStore.subscribe("building.mouseNewPartPosition", (position) => {
       // Debounce the call to only call it with the last params - in this case position
       this.debouncedVisualizeNewPart(position);
@@ -60,6 +67,7 @@ export class BlueprintBuildable extends BetterObject3D {
       const placementBox = new PlacementBox(instance);
       this.add(placementBox);
     }
+    this.debouncedValidateParts();
     return instance;
   }
 
@@ -75,6 +83,7 @@ export class BlueprintBuildable extends BetterObject3D {
       (placementBox as PlacementBox).dispose(true);
       this.remove(placementBox);
     }
+    this.debouncedValidateParts();
   }
 
   visualizationPart: BetterObject3D | null = null;
@@ -146,7 +155,7 @@ export class BlueprintBuildable extends BetterObject3D {
 
   afterUpdate() {
     super.afterUpdate();
-    if (this.moved) return;
+    if (!this.isShipBlueprint || this.moved) return;
 
     const deltaSeconds = currentDeltaTime / 1000;
     if (this.moveUpTime > 0) {
@@ -164,7 +173,7 @@ export class BlueprintBuildable extends BetterObject3D {
     // Smoother step easing (quintic) for gentler start/stop: 6t^5 - 15t^4 + 10t^3
     const t = this.moveProgress;
     const eased = t * t * t * (t * (t * 6 - 15) + 10);
-    this.position.z = this._shipProps.position.z + this.moveUpDistance * eased;
+    this.position.z = this._buildableData.position.z + this.moveUpDistance * eased;
 
     // Apply the same easing to rotation X and Y, returning to 0 at the end
     const rotateFactor = 1 - eased; // 1 -> 0 over time
@@ -173,29 +182,61 @@ export class BlueprintBuildable extends BetterObject3D {
   }
 
   validateParts() {
-    continue here;
+    const errors: BuildError[] = [];
+    const helmParts = this.parts.filter((part) => part instanceof Helm);
+    const numberOfHelms = helmParts.length;
+    if (this.isShipBlueprint) {
+      // Ship specific validation
+      if (numberOfHelms === 0) {
+        errors.push({
+          message: "Ship needs to have helm",
+          details: "All ships need to have a helm. It is the main control for the ship. What kind of dumb ass would build a ship without a helm?",
+          errorParts: [],
+        });
+      }
+      if (numberOfHelms > 1) {
+        errors.push({
+          message: "Ship can have only one helm",
+          details: `Ship currently has ${numberOfHelms} helms. It can only have one.`,
+          errorParts: helmParts,
+        });
+      }
+    } else {
+      // Fixed structure specific validation
+      if (numberOfHelms > 0) {
+        errors.push({
+          message: "Fixed structure can't have helms",
+          details: "Fixed structures are not ships. They can't have helms. You can't control fixed structures similar to ships.",
+          errorParts: helmParts,
+        });
+      }
+    }
+    this.gameStore.set("building.errors", errors);
+    return errors;
   }
 
-  get shipProps(): ShipProps {
-    const shipPropsCopy: ShipProps = {
+  debouncedValidateParts = debounceOnlyLastCall(() => this.validateParts(), 0);
+
+  get buildableData(): BuildableData {
+    const buildableDataCopy: BuildableData = {
       rotation: new Quaternion().setFromEuler(this.rotation),
       position: this.position.clone(),
-      blueprint: { ...this._shipProps.blueprint },
+      blueprint: { ...this._buildableData.blueprint },
     };
-    shipPropsCopy.blueprint.parts = [];
+    buildableDataCopy.blueprint.parts = [];
     this.parts.forEach((part) => {
       if (part === this.visualizationPart) return;
-      shipPropsCopy.blueprint.parts.push({
-        part: part.constructor as ShipPartConstructor,
+      buildableDataCopy.blueprint.parts.push({
+        part: part.constructor as BuildablePartConstructor,
         position: part.position.clone(),
         rotation: new Euler(part.rotation.x, part.rotation.y, part.rotation.z),
       });
     });
-    return shipPropsCopy;
+    return buildableDataCopy;
   }
 
-  set shipProps(_shipProps: ShipProps) {
-    throw new Error("Cannot set shipProps on BlueprintBuildable");
+  set buildableData(_buildableData: BuildableData) {
+    throw new Error("Cannot set buildableData on BlueprintBuildable. It can be only set in the constructor.");
   }
 
   dispose(removeFromParent?: boolean): void {
@@ -225,6 +266,13 @@ class PlacementBox extends BetterObject3D {
     this.planes = [];
     const mouseEventManager = ObjectMouseEventManager.getInstance();
     const gameStore = GameStore.getInstance();
+    gameStore.subscribe("building.errors", (errors) => {
+      if (errors.some((error) => error.errorParts?.includes(this.part))) {
+        this.lines.material.color.set(0xff0000);
+      } else {
+        this.lines.material.color.set(0xffffff);
+      }
+    });
     for (const planeData of cubePlanes) {
       const planeMaterial = new MeshPhongMaterial({ color: 0xffffff, transparent: true, visible: false, opacity: 0.6 });
       const plane = new Mesh(planeGeometry, planeMaterial);
@@ -326,7 +374,7 @@ export type Blueprint = {
 };
 
 export type BlueprintPart = {
-  part: ShipPartConstructor;
+  part: BuildablePartConstructor;
   position: Vector3;
   rotation: Euler;
   partName?: string;

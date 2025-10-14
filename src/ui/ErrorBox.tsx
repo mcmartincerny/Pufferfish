@@ -232,10 +232,11 @@ const Message = styled.span`
 `;
 
 const Details = styled(motion.div)`
-  padding: 10px 12px 12px 28px;
+  padding: 12px 16px;
   color: ${theme.colors.white};
   background-color: ${theme.colors.blueishBlack};
   border-top: 1px solid ${theme.colors.grey};
   line-height: 1.4;
   white-space: pre-wrap;
+  text-align: left;
 `;

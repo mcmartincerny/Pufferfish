@@ -1,21 +1,28 @@
 import { Euler } from "three";
 import { BuoyantObject } from "./BuoyantObject";
-import { Helm, LeadBox, ShipPartInstance, ShipPartConstructor, WoodenBox, WoodenRamp, Propeller, ThrustingPart, RudderPart, SmallRudder } from "./ShipParts";
+import {
+  Helm,
+  LeadBox,
+  BuildablePartInstance,
+  BuildablePartConstructor,
+  WoodenBox,
+  WoodenRamp,
+  Propeller,
+  ThrustingPart,
+  RudderPart,
+  SmallRudder,
+} from "./ShipParts";
 import { degToRad, Quaternion, Vector3 } from "../helpers";
 import { shipDesign } from "./shipDesigns";
 import { world } from "../Globals";
 import { RigidBody, RigidBodyDesc } from "@dimforge/rapier3d-compat";
-import { Blueprint, BlueprintPart } from "./BlueprintBuildable";
+import { Blueprint, BlueprintPart, BuildableData } from "./BlueprintBuildable";
 
-export type ShipProps = {
-  blueprint: Blueprint;
-  position: Vector3;
-  rotation: Quaternion;
-};
+export type ShipProps = BuildableData;
 
 export class Ship extends BuoyantObject {
   rigidBody: RigidBody;
-  parts: ShipPartInstance[] = [];
+  parts: BuildablePartInstance[] = [];
   helm!: Helm;
   thrustParts: ThrustingPart[] = [];
   rudderParts: RudderPart[] = [];

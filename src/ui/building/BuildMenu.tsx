@@ -6,6 +6,7 @@ import { ItemIcon } from "./ItemIcon";
 import { useGameValue } from "../GameContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { ErrorBox } from "../ErrorBox";
+import { showToast } from "../../Globals";
 
 enum BuildCategory {
   All = "All",
@@ -19,6 +20,10 @@ export const BuildMenu = () => {
   const [hoveredItem, setHoveredItem] = useState<ShipPartInfo | null>(null);
   const previewTimerRef = useRef<number | null>(null);
 
+  const [selectedItem, setSelectedItem] = useGameValue("building.selectedItem");
+  const [deleteMode, setDeleteMode] = useGameValue("building.deleteMode");
+  const [buildErrors] = useGameValue("building.errors");
+
   // Get all ship parts and categories (memoized for stable identities)
   const allShipParts = useMemo(() => getAllShipParts(), []);
   const shipCategories = useMemo(() => getShipPartCategories(), []);
@@ -28,12 +33,17 @@ export const BuildMenu = () => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === "b") {
         if (mode === "build") {
+          if (buildErrors.length > 0) {
+            showToast("You have build errors. Please fix them before continuing.", {
+              duration: 3000,
+              style: "error",
+            });
+            return;
+          }
           setMode("third_person");
         } else {
           setMode("build");
         }
-      } else if (event.key === "Escape" && mode === "build") {
-        setMode("third_person");
       }
     };
 
@@ -41,7 +51,7 @@ export const BuildMenu = () => {
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
     };
-  }, [mode, setMode]);
+  }, [mode, setMode, buildErrors]);
 
   const filteredItems = selectedCategory === BuildCategory.All ? allShipParts : allShipParts.filter((item) => item.category === selectedCategory);
 
@@ -69,10 +79,6 @@ export const BuildMenu = () => {
     }
     setHoveredItem(null);
   };
-
-  const [selectedItem, setSelectedItem] = useGameValue("building.selectedItem");
-  const [deleteMode, setDeleteMode] = useGameValue("building.deleteMode");
-  const [buildErrors] = useGameValue("building.errors");
 
   const handleItemClick = (item: ShipPartInfo) => {
     // is item already selected?

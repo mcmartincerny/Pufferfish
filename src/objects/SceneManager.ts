@@ -53,7 +53,7 @@ export class SceneManager extends BetterObject3D {
     if (!this.currentActor) return;
     if (this.currentActor instanceof BlueprintBuildable) {
       console.log("switchToShip");
-      const props = this.currentActor.shipProps;
+      const props = this.currentActor.buildableData;
       const ship = new ShipPlayer(props);
       this.setActor(ship);
     }

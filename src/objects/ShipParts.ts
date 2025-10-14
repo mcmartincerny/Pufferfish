@@ -8,13 +8,15 @@ import { Ship } from "./Ship";
 import { BetterObject3D } from "./BetterObject3D";
 import { WATER_LINE_Z } from "./Water";
 
-export type ShipPartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
-export type ShipPartInstance = InstanceType<ShipPartConstructor>;
+export type BuildablePartConstructor = typeof Helm | typeof WoodenBox | typeof WoodenRamp | typeof LeadBox | typeof Propeller | typeof SmallRudder;
+export type BuildablePartInstance = InstanceType<BuildablePartConstructor>;
 
 export type ShipPartProps = {
   rotation: Quaternion;
   translation: Vector3;
 };
+
+// TODO: Rename all ship... things in this file to buildable... and make sure it works with fixed structures
 export class ShipPart extends BetterObject3D {
   buildRotation: Quaternion;
   localTranslation: Vector3 = new Vector3(0, 0, 0);
@@ -450,7 +452,7 @@ export interface ShipPartInfo {
   description: string;
   price: number;
   weight: number;
-  constructor: ShipPartConstructor;
+  constructor: BuildablePartConstructor;
 }
 
 const allShipParts = [Helm, WoodenBox, WoodenRamp, LeadBox, Propeller, SmallRudder];
