@@ -311,19 +311,27 @@ export const animatePositionTo = (object: Object3D, toPosition: Vector3, duratio
 
 export const animateRotationTo = (object: Object3D, toRotation: Euler, duration: number, timingFunction?: (progress: number) => number) => {
   const startRotation = object.rotation.clone();
+  const startQuat = new Quaternion().setFromEuler(startRotation);
+  const endQuat = new Quaternion().setFromEuler(toRotation);
+  // Ensure shortest path for slerp
+  if (startQuat.dot(endQuat) < 0) {
+    endQuat.x *= -1;
+    endQuat.y *= -1;
+    endQuat.z *= -1;
+    endQuat.w *= -1;
+  }
   const startTime = performance.now();
   const animate = () => {
     const currentTime = performance.now();
     const progress = clamp((currentTime - startTime) / duration, 0, 1);
     if (progress >= 1) {
-      object.rotation.set(toRotation.x, toRotation.y, toRotation.z, toRotation.order);
+      object.quaternion.set(endQuat.x, endQuat.y, endQuat.z, endQuat.w);
       return;
     }
     const t = timingFunction ? timingFunction(progress) : progress;
-    const x = startRotation.x + (toRotation.x - startRotation.x) * t;
-    const y = startRotation.y + (toRotation.y - startRotation.y) * t;
-    const z = startRotation.z + (toRotation.z - startRotation.z) * t;
-    object.rotation.set(x, y, z, startRotation.order);
+    const currentQuat = new Quaternion();
+    currentQuat.slerpQuaternions(startQuat, endQuat, t);
+    object.quaternion.set(currentQuat.x, currentQuat.y, currentQuat.z, currentQuat.w);
     requestAnimationFrame(animate);
   };
   requestAnimationFrame(animate);

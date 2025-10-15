@@ -12,7 +12,9 @@ export type BuildablePartConstructor =
   | typeof Helm
   | typeof WoodenBox
   | typeof WoodenBox2x1x1
+  | typeof WoodenBox3x1x1
   | typeof WoodenBox2x2x1
+  | typeof WoodenBox3x3x1
   | typeof WoodenBox2x2x2
   | typeof WoodenBox3x3x3
   | typeof WoodenRamp
@@ -178,6 +180,20 @@ export class WoodenBox2x1x1 extends WoodenBox {
   }
 }
 
+export class WoodenBox3x1x1 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [3, 1, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-3x1x1",
+      name: "Wooden Box 3x1x1",
+      constructor: WoodenBox3x1x1,
+    };
+  }
+}
+
 export class WoodenBox2x2x1 extends WoodenBox {
   constructor(props: ShipPartProps) {
     super(props, [2, 2, 1]);
@@ -188,6 +204,20 @@ export class WoodenBox2x2x1 extends WoodenBox {
       id: "wooden-box-2x2x1",
       name: "Wooden Box 2x2x1",
       constructor: WoodenBox2x2x1,
+    };
+  }
+}
+
+export class WoodenBox3x3x1 extends WoodenBox {
+  constructor(props: ShipPartProps) {
+    super(props, [3, 3, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-box-3x3x1",
+      name: "Wooden Box 3x3x1",
+      constructor: WoodenBox3x3x1,
     };
   }
 }
@@ -525,7 +555,20 @@ export interface ShipPartInfo {
   constructor: BuildablePartConstructor;
 }
 
-const allShipParts = [Helm, WoodenBox, WoodenBox2x1x1, WoodenBox2x2x1, WoodenBox2x2x2, WoodenBox3x3x3, WoodenRamp, LeadBox, Propeller, SmallRudder];
+const allShipParts = [
+  Helm,
+  WoodenBox,
+  WoodenBox2x1x1,
+  WoodenBox3x1x1,
+  WoodenBox2x2x1,
+  WoodenBox3x3x1,
+  WoodenBox2x2x2,
+  WoodenBox3x3x3,
+  WoodenRamp,
+  LeadBox,
+  Propeller,
+  SmallRudder,
+];
 
 // Function to get all available ship parts
 export function getAllShipParts(): ShipPartInfo[] {

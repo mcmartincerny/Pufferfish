@@ -5,6 +5,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls";
 import { ThirdPersonCamera } from "./ThirdPersonCamera";
 import { BuildCamera } from "./BuildCamera";
 import { GameStore } from "../ui/GameContext.tsx";
+import { setMainCamera } from "../Globals.ts";
 export enum CameraType {
   Free = "Free",
   ThirdPerson = "ThirdPerson",
@@ -30,6 +31,7 @@ export class CameraSwitcher {
   disposeFunctions: (() => void)[] = [];
 
   constructor(canvasElement: HTMLCanvasElement, cameraType: CameraType = CameraType.ThirdPerson) {
+    setMainCamera(this.camera);
     this.canvasElement = canvasElement;
     this.type = cameraType;
     this.camera.up.set(0, 0, 1);

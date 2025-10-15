@@ -2,7 +2,7 @@ import { Euler, Mesh, MeshPhongMaterial, PlaneGeometry } from "three";
 import { animatePositionTo, animateRotationTo, debounceOnlyLastCall, Quaternion, Vector3 } from "../helpers";
 import { BetterObject3D } from "./BetterObject3D";
 import { Helm, BuildablePartConstructor } from "./ShipParts";
-import { currentDeltaTime } from "../Globals";
+import { currentDeltaTime, mainCamera } from "../Globals";
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from "three/examples/jsm/Addons.js";
 import { ObjectMouseEventManager } from "./ObjectMouseEventManager";
 import { BuildError, GameStore } from "../ui/GameContext";
@@ -132,9 +132,22 @@ export class BlueprintBuildable extends BetterObject3D {
     const partInfo = this.gameStore.get("building.selectedItem");
     if (partInfo == null) return;
     if (this.visualizationPartId === partInfo.id && this.visualizationPart) {
-      // Update anchor and recompute rotated offset so the anchor cell stays locked while moving
+      // Update anchor and recompute rotation/offset to ensure the part fits
       this.visualizationAnchorPosition = position.clone();
-      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, this.visualizationTargetRotation ?? this.visualizationPart.rotation);
+      const preferred = this.visualizationTargetRotation ?? this.visualizationPart.rotation.clone();
+      const best = this.findFittingRotation(this.visualizationPart, position, preferred);
+      if (!best) {
+        // No valid placement: hide visualization
+        this.removePart(this.visualizationPart);
+        this.visualizationPart = null;
+        this.visualizationPartId = null;
+        this.visualizationTargetPosition = null;
+        this.visualizationTargetRotation = null;
+        return;
+      }
+      this.visualizationTargetRotation = best.clone();
+      animateRotationTo(this.visualizationPart, best, 100);
+      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, best);
       this.visualizationTargetPosition = position.clone().sub(rotatedOffset);
       animatePositionTo(this.visualizationPart, this.visualizationTargetPosition, 100);
       return;
@@ -143,11 +156,24 @@ export class BlueprintBuildable extends BetterObject3D {
     this.visualizationPart = this.createAndAddPart(part, false);
     // Initialize anchor lock and place the part so the anchor cell is correct for current rotation
     this.visualizationAnchorPosition = position.clone();
-    const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, this.visualizationPart.rotation);
+    const preferred = this.visualizationPart.rotation.clone();
+    const best = this.findFittingRotation(this.visualizationPart, position, preferred);
+    if (!best) {
+      // No valid placement: do not show visualization
+      this.removePart(this.visualizationPart);
+      this.visualizationPart = null;
+      this.visualizationPartId = null;
+      this.visualizationTargetPosition = null;
+      this.visualizationTargetRotation = null;
+      this.visualizationAnchorPosition = null;
+      return;
+    }
+    const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, best);
     this.visualizationPart.position.copy(position.clone().sub(rotatedOffset));
     this.visualizationPartId = partInfo.id;
     this.visualizationTargetPosition = this.visualizationPart.position.clone();
-    this.visualizationTargetRotation = this.visualizationPart.rotation.clone();
+    this.visualizationTargetRotation = best.clone();
+    animateRotationTo(this.visualizationPart, best, 0);
   };
 
   debouncedVisualizeNewPart = debounceOnlyLastCall(this.visualizeNewPart, 0);
@@ -155,30 +181,67 @@ export class BlueprintBuildable extends BetterObject3D {
   private onKeyDown(event: KeyboardEvent) {
     if (!this.visualizationPart) return;
     const step = Math.PI / 2; // 90 degrees
-    // Snap helper to avoid drift
-    const snap = (angle: number) => Math.round(angle / step) * step;
     const key = event.key.toLowerCase();
-    const current = this.visualizationPart.rotation;
-    let rx = snap(current.x);
-    let ry = snap(current.y);
-    let rz = snap(current.z);
-    if (key === "w") rx = snap(current.x + step);
-    else if (key === "s") rx = snap(current.x - step);
-    else if (key === "a") ry = snap(current.y + step);
-    else if (key === "d") ry = snap(current.y - step);
-    else if (key === "q") rz = snap(current.z + step);
-    else if (key === "e") rz = snap(current.z - step);
-    else return;
-    const targetEuler = new Euler(rx, ry, rz);
-    this.visualizationTargetRotation = targetEuler.clone();
-    animateRotationTo(this.visualizationPart, targetEuler, 100);
-    // Recompute position so the anchor cell stays locked during rotation
-    if (this.visualizationAnchorPosition) {
-      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, targetEuler);
-      const targetPos = this.visualizationAnchorPosition.clone().sub(rotatedOffset);
-      this.visualizationTargetPosition = targetPos;
-      animatePositionTo(this.visualizationPart, targetPos, 100);
+
+    // Derive camera-facing cardinal axes in the XY plane (ignore camera pitch/roll)
+    const yaw = mainCamera.rotation.z;
+    const yawIndex = ((Math.round(yaw / step) % 4) + 4) % 4; // 0..3
+    const forward =
+      yawIndex === 0 ? new Vector3(1, 0, 0) : yawIndex === 1 ? new Vector3(0, 1, 0) : yawIndex === 2 ? new Vector3(-1, 0, 0) : new Vector3(0, -1, 0);
+    const right =
+      yawIndex === 0 ? new Vector3(0, 1, 0) : yawIndex === 1 ? new Vector3(-1, 0, 0) : yawIndex === 2 ? new Vector3(0, -1, 0) : new Vector3(1, 0, 0);
+    const worldUp = new Vector3(0, 0, 1);
+
+    // Map keys to axes:
+    // - W/S: pitch about camera-right (spill away/toward viewer)
+    // - A/D: roll about camera-forward (tilt left/right from viewer)
+    // - Q/E: spin about world-up (yoyo spin, stay upright)
+    let axis: Vector3 | null = null;
+    let dir: 1 | -1 = 1;
+    if (key === "w") {
+      axis = forward;
+      dir = -1;
+    } else if (key === "s") {
+      axis = forward;
+      dir = 1;
+    } else if (key === "a") {
+      axis = right;
+      dir = -1;
+    } else if (key === "d") {
+      axis = right;
+      dir = 1;
+    } else if (key === "q") {
+      axis = worldUp;
+      dir = 1;
+    } else if (key === "e") {
+      axis = worldUp;
+      dir = -1;
+    } else {
+      return;
     }
+
+    // Build world-space delta quaternion and apply before current rotation (world-relative)
+    const currentQuat = new Quaternion().setFromEuler(this.visualizationPart.rotation);
+    const deltaQuat = new Quaternion().setFromAxisAngle(axis!, dir * step);
+    const desiredQuat = new Quaternion(deltaQuat).multiply(currentQuat);
+    const desired = new Euler().setFromQuaternion(desiredQuat);
+    const anchor = this.visualizationAnchorPosition ?? this.visualizationPart.position.clone();
+
+    // Prefer exact desired 90° step if valid to ensure expected spin direction
+    if (this.isRotationValid(this.visualizationPart, anchor, desired)) {
+      this.visualizationTargetRotation = desired.clone();
+      animateRotationTo(this.visualizationPart, desired, 100);
+      if (this.visualizationAnchorPosition) {
+        const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, desired);
+        const targetPos = this.visualizationAnchorPosition.clone().sub(rotatedOffset);
+        this.visualizationTargetPosition = targetPos;
+        animatePositionTo(this.visualizationPart, targetPos, 100);
+      }
+      return;
+    }
+
+    // No auto-fit during key rotation; if invalid, do nothing
+    return;
   }
 
   private placeVisualizationPart() {
@@ -191,6 +254,9 @@ export class BlueprintBuildable extends BetterObject3D {
       finalPosition = this.visualizationAnchorPosition.clone().sub(rotatedOffset);
     }
     const finalRotationEuler = this.visualizationTargetRotation ?? this.visualizationPart.rotation;
+    // Validate again right before placement
+    const best = this.findFittingRotation(this.visualizationPart, this.visualizationAnchorPosition ?? finalPosition, finalRotationEuler);
+    if (!best) return;
     const part: BlueprintPart = {
       part: selected.constructor,
       position: finalPosition,
@@ -198,6 +264,110 @@ export class BlueprintBuildable extends BetterObject3D {
     };
     const instance = this.createAndAddPart(part, true);
     this.parts.push(instance);
+  }
+
+  private getIntegerSizeForInstance(instance: BetterObject3D): [number, number, number] {
+    instance.mainMesh?.geometry.computeBoundingBox();
+    const bb = instance.mainMesh?.geometry.boundingBox;
+    if (!bb) return [1, 1, 1];
+    const sx = Math.max(1, Math.ceil(bb.max.x - bb.min.x));
+    const sy = Math.max(1, Math.ceil(bb.max.y - bb.min.y));
+    const sz = Math.max(1, Math.ceil(bb.max.z - bb.min.z));
+    return [sx, sy, sz];
+  }
+
+  private getLocalCellOffsets(size: [number, number, number]): Vector3[] {
+    const [sx, sy, sz] = size;
+    const offsets: Vector3[] = [];
+    for (let ix = 0; ix < sx; ix++) {
+      for (let iy = 0; iy < sy; iy++) {
+        for (let iz = 0; iz < sz; iz++) {
+          offsets.push(new Vector3(-sx / 2 + 0.5 + ix, -sy / 2 + 0.5 + iy, -sz / 2 + 0.5 + iz));
+        }
+      }
+    }
+    return offsets;
+  }
+
+  private buildOccupiedCellSet(): Set<string> {
+    const occupied = new Set<string>();
+    for (const part of this.parts) {
+      const size = this.getIntegerSizeForInstance(part);
+      const localOffsets = this.getLocalCellOffsets(size);
+      const quat = new Quaternion().setFromEuler(part.rotation);
+      for (const local of localOffsets) {
+        const world = new Vector3(part.position).add(new Vector3(local).applyQuaternion(quat));
+        occupied.add(`${Math.round(world.x)}|${Math.round(world.y)}|${Math.round(world.z)}`);
+      }
+    }
+    return occupied;
+  }
+
+  private computeCellsForRotation(size: [number, number, number], anchorWorld: Vector3, rotation: Euler): Vector3[] {
+    const localOffsets = this.getLocalCellOffsets(size);
+    const anchorLocal = new Vector3(-size[0] / 2 + 0.5, -size[1] / 2 + 0.5, -size[2] / 2 + 0.5);
+    const quat = new Quaternion().setFromEuler(rotation);
+    const result: Vector3[] = [];
+    for (const local of localOffsets) {
+      const delta = new Vector3(local).sub(anchorLocal);
+      const world = new Vector3(anchorWorld).add(delta.applyQuaternion(quat));
+      result.push(world);
+    }
+    return result;
+  }
+
+  private findFittingRotation(instance: BetterObject3D, anchorWorld: Vector3, preferred: Euler): Euler | null {
+    const size = this.getIntegerSizeForInstance(instance);
+    const occupied = this.buildOccupiedCellSet();
+    const candidates: Euler[] = [];
+    const seen = new Set<string>();
+    const degs = [0, 90, 180, 270];
+    for (const rx of degs) {
+      for (const ry of degs) {
+        for (const rz of degs) {
+          const key = `${rx}|${ry}|${rz}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          candidates.push(new Euler((rx * Math.PI) / 180, (ry * Math.PI) / 180, (rz * Math.PI) / 180));
+        }
+      }
+    }
+    // Sort by closeness to preferred
+    const dist = (a: Euler, b: Euler) => {
+      const dd = (u: number, v: number) => {
+        const tau = 2 * Math.PI;
+        let d = Math.abs(u - v) % tau;
+        if (d > Math.PI) d = tau - d;
+        return d;
+      };
+      return dd(a.x, b.x) + dd(a.y, b.y) + dd(a.z, b.z);
+    };
+    candidates.sort((a, b) => dist(a, preferred) - dist(b, preferred));
+
+    for (const rot of candidates) {
+      const cells = this.computeCellsForRotation(size, anchorWorld, rot);
+      let ok = true;
+      for (const c of cells) {
+        const key = `${Math.round(c.x)}|${Math.round(c.y)}|${Math.round(c.z)}`;
+        if (occupied.has(key)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return rot;
+    }
+    return null;
+  }
+
+  private isRotationValid(instance: BetterObject3D, anchorWorld: Vector3, rotation: Euler): boolean {
+    const size = this.getIntegerSizeForInstance(instance);
+    const occupied = this.buildOccupiedCellSet();
+    const cells = this.computeCellsForRotation(size, anchorWorld, rotation);
+    for (const c of cells) {
+      const key = `${Math.round(c.x)}|${Math.round(c.y)}|${Math.round(c.z)}`;
+      if (occupied.has(key)) return false;
+    }
+    return true;
   }
 
   afterUpdate() {

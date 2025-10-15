@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import GUI from "lil-gui";
-import { Scene } from "three";
+import { PerspectiveCamera, Scene } from "three";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
 import { MapGenerationData } from "./ui/NewMap";
 import { ShowToastFunction } from "./ui/ToastManager";
@@ -45,4 +45,10 @@ export let showToast: ShowToastFunction;
 
 export const setShowToastFunction = (newShowToast: ShowToastFunction) => {
   showToast = newShowToast;
+};
+
+export let mainCamera: PerspectiveCamera;
+
+export const setMainCamera = (newCamera: PerspectiveCamera) => {
+  mainCamera = newCamera;
 };
