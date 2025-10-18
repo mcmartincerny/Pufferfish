@@ -1,5 +1,5 @@
-import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Vector3 as ThreeVector3, Object3D, Box3 } from "three";
-import { clamp, degToRad, log10000, log50, Quaternion, Vector3 } from "../helpers";
+import { BoxGeometry, Color, CylinderGeometry, Euler, Mesh, MeshPhongMaterial, Vector3 as ThreeVector3, Box3 } from "three";
+import { clamp, degToRad, Quaternion, Vector3 } from "../helpers";
 import { ActiveHooks, ColliderDesc } from "@dimforge/rapier3d-compat";
 import { world, currentDeltaTime } from "../Globals";
 import { createConvexMeshColliderForMesh, PrismGeometry } from "./Shapes";
@@ -18,6 +18,8 @@ export type BuildablePartConstructor =
   | typeof WoodenBox2x2x2
   | typeof WoodenBox3x3x3
   | typeof WoodenRamp
+  | typeof WoodenRamp2x1x1
+  | typeof WoodenRamp3x1x1
   | typeof LeadBox
   | typeof Propeller
   | typeof SmallRudder;
@@ -94,6 +96,7 @@ export class Helm extends ShipPart {
       price: 45,
       weight: 8.5,
       constructor: Helm,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["-Z"] }],
     };
   }
 
@@ -136,6 +139,7 @@ export class WoodenBox extends ShipPart {
       price: 15,
       weight: 12.0,
       constructor: WoodenBox,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] }],
     };
   }
 
@@ -251,6 +255,7 @@ export class WoodenBox3x3x3 extends WoodenBox {
 }
 
 export class WoodenRamp extends ShipPart {
+  size = [1, 1, 1];
   static getPartInfo(): ShipPartInfo {
     return {
       id: "wooden-ramp",
@@ -260,17 +265,21 @@ export class WoodenRamp extends ShipPart {
       price: 22,
       weight: 18.0,
       constructor: WoodenRamp,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["-X", "+Y", "-Y", "-Z"] }],
     };
   }
 
-  constructor({ rotation, translation }: ShipPartProps) {
-    super({ rotation: rotation, translation: translation });
+  constructor(props: ShipPartProps, size?: [number, number, number]) {
+    super({ rotation: props.rotation, translation: props.translation });
+    if (size) {
+      this.size = size;
+    }
     // Build visual prism geometry in local space, rotated accordingly
-    const prismGeometry = new PrismGeometry({ length: 1, width: 1, height: 1 });
+    const prismGeometry = new PrismGeometry({ length: this.size[0], width: this.size[1], height: this.size[2] });
     // Align pivot similarly to Shapes.createPrismWithColider
-    const halfLength = 1 / 2;
-    const halfWidth = 1 / 2;
-    const halfHeight = 1 / 2;
+    const halfLength = this.size[0] / 2;
+    const halfWidth = this.size[1] / 2;
+    const halfHeight = this.size[2] / 2;
     prismGeometry.translate(-halfLength, halfWidth, -halfHeight);
     const prismMaterial = new MeshPhongMaterial({ color: randomizeColor(0x735928, 0.05) });
     const prism = new Mesh(prismGeometry, prismMaterial);
@@ -291,6 +300,47 @@ export class WoodenRamp extends ShipPart {
   }
 }
 
+export class WoodenRamp2x1x1 extends WoodenRamp {
+  constructor(props: ShipPartProps) {
+    super(props, [2, 1, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-ramp-2x1x1",
+      name: "Wooden Ramp 2x1x1",
+      price: 44,
+      weight: 36.0,
+      constructor: WoodenRamp2x1x1,
+      attachPoints: [
+        { cell: [-0.5, 0, 0], faces: ["-X", "+Y", "-Y", "-Z"] },
+        { cell: [0.5, 0, 0], faces: ["+Y", "-Y", "-Z"] },
+      ],
+    };
+  }
+}
+
+export class WoodenRamp3x1x1 extends WoodenRamp {
+  constructor(props: ShipPartProps) {
+    super(props, [3, 1, 1]);
+  }
+  static getPartInfo(): ShipPartInfo {
+    return {
+      ...super.getPartInfo(),
+      id: "wooden-ramp-3x1x1",
+      name: "Wooden Ramp 3x1x1",
+      price: 66,
+      weight: 54.0,
+      constructor: WoodenRamp3x1x1,
+      attachPoints: [
+        { cell: [-1, 0, 0], faces: ["-X", "+Y", "-Y", "-Z"] },
+        { cell: [0, 0, 0], faces: ["+Y", "-Y", "-Z"] },
+        { cell: [1, 0, 0], faces: ["+Y", "-Y", "-Z"] },
+      ],
+    };
+  }
+}
+
 export class LeadBox extends WoodenBox {
   static getPartInfo(): ShipPartInfo {
     return {
@@ -301,6 +351,7 @@ export class LeadBox extends WoodenBox {
       price: 35,
       weight: 85.0,
       constructor: LeadBox,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] }],
     };
   }
 
@@ -369,6 +420,7 @@ export class Propeller extends ThrustingPart {
       price: 65,
       weight: 15.0,
       constructor: Propeller,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["-Y"] }],
     };
   }
 
@@ -501,6 +553,7 @@ export class SmallRudder extends RudderPart {
       price: 30,
       weight: 6.0,
       constructor: SmallRudder,
+      attachPoints: [{ cell: [0, 0, 0], faces: ["-Y"] }],
     };
   }
 
@@ -545,6 +598,9 @@ const randomizeColor = (color: string | number | Color, randomness = 0.1) => {
   return new Color(r, g, b);
 };
 
+export type AttachFace = "+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z";
+export type AttachPoint = { cell: [number, number, number]; faces: AttachFace[] };
+
 export interface ShipPartInfo {
   id: string;
   name: string;
@@ -553,6 +609,7 @@ export interface ShipPartInfo {
   price: number;
   weight: number;
   constructor: BuildablePartConstructor;
+  attachPoints: AttachPoint[];
 }
 
 const allShipParts = [
@@ -565,6 +622,8 @@ const allShipParts = [
   WoodenBox2x2x2,
   WoodenBox3x3x3,
   WoodenRamp,
+  WoodenRamp2x1x1,
+  WoodenRamp3x1x1,
   LeadBox,
   Propeller,
   SmallRudder,

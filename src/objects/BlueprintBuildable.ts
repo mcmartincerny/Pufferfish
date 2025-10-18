@@ -82,6 +82,9 @@ export class BlueprintBuildable extends BetterObject3D {
     // One outline per whole part
     const outline = new PlacementOutline(instance, new Vector3(0, 0, 0), new Vector3(sx, sy, sz));
     this.add(outline);
+    // Visualize attachment points if present on the part type (attach to part so rotation is inherited)
+    const attachmentPoints = new AttachmentPoints(instance);
+    this.add(attachmentPoints);
     for (let ix = 0; ix < sx; ix++) {
       for (let iy = 0; iy < sy; iy++) {
         for (let iz = 0; iz < sz; iz++) {
@@ -102,10 +105,12 @@ export class BlueprintBuildable extends BetterObject3D {
     this.remove(part);
     // Remove and dispose any associated placement panels and outline
     const placementVisuals = this.children.filter(
-      (child) => (child instanceof PlacementPlanes || child instanceof PlacementOutline) && (child as PlacementPlanes | PlacementOutline).part === part
+      (child) =>
+        (child instanceof PlacementPlanes || child instanceof PlacementOutline || child instanceof AttachmentPoints) &&
+        (child as PlacementPlanes | PlacementOutline | AttachmentPoints).part === part
     );
     placementVisuals.forEach((v) => {
-      (v as PlacementPlanes | PlacementOutline).dispose(true);
+      (v as PlacementPlanes | PlacementOutline | AttachmentPoints).dispose(true);
       this.remove(v);
     });
     this.debouncedValidateParts();
@@ -574,7 +579,6 @@ class PlacementOutline extends BetterObject3D {
   constructor(public part: BetterObject3D, worldOffset: Vector3, scaleXYZ: Vector3) {
     super();
     this.position.copy(new Vector3(part.position).add(worldOffset));
-    // Match the part's rotation so the outline aligns with oriented parts
     this.setRotationFromEuler(part.rotation);
     const geometry = new LineSegmentsGeometry().setPositions(cubePoints.flat().flatMap((point) => [point.x, point.y, point.z]));
     const material = new LineMaterial({ color: 0xffffff, linewidth: 2 });
@@ -595,6 +599,66 @@ class PlacementOutline extends BetterObject3D {
     super.dispose(removeFromParent);
     this.unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
     this.unsubscribeFunctions = [];
+  }
+}
+
+class AttachmentPoints extends BetterObject3D {
+  planes: Mesh[] = [];
+  constructor(public part: BetterObject3D) {
+    super();
+    // Parented to part — no manual position/rotation needed
+
+    // Read attachPoints from ShipPartInfo if available
+    const ctor: any = part.constructor;
+    const info = ctor.getPartInfo?.();
+    const points = info?.attachPoints as { cell: [number, number, number]; faces: ("+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z")[] }[] | undefined;
+    if (!points || points.length === 0) return;
+
+    const planeGeometry = new PlaneGeometry(0.2, 0.2);
+    this.rotation.copy(part.rotation);
+    this.position.copy(part.position);
+
+    for (const p of points) {
+      // Create one small panel per face at that cell
+      const cellLocal = new Vector3(p.cell[0], p.cell[1], p.cell[2]);
+      for (const face of p.faces) {
+        const material = new MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+        const plane = new Mesh(planeGeometry, material);
+        // Position: cell center + tiny offset along face normal
+        const normalLocal =
+          face === "+X"
+            ? new Vector3(1, 0, 0)
+            : face === "-X"
+            ? new Vector3(-1, 0, 0)
+            : face === "+Y"
+            ? new Vector3(0, 1, 0)
+            : face === "-Y"
+            ? new Vector3(0, -1, 0)
+            : face === "+Z"
+            ? new Vector3(0, 0, 1)
+            : new Vector3(0, 0, -1);
+        const worldOffset = new Vector3(cellLocal).add(new Vector3(normalLocal).multiplyScalar(0.51));
+        plane.position.copy(worldOffset);
+
+        // Orient plane so its normal matches face normal
+        const euler = new Euler(0, 0, 0);
+        if (face === "+X") euler.set(0, Math.PI / 2, 0);
+        else if (face === "-X") euler.set(0, -Math.PI / 2, 0);
+        else if (face === "+Y") euler.set(-Math.PI / 2, 0, 0);
+        else if (face === "-Y") euler.set(Math.PI / 2, 0, 0);
+        else if (face === "+Z") euler.set(0, 0, 0);
+        else if (face === "-Z") euler.set(Math.PI, 0, 0);
+        plane.setRotationFromEuler(euler);
+
+        this.planes.push(plane);
+        this.add(plane);
+      }
+    }
+  }
+
+  dispose(removeFromParent?: boolean): void {
+    super.dispose(removeFromParent);
+    this.planes = [];
   }
 }
 
