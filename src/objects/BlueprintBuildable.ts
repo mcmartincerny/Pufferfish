@@ -116,6 +116,8 @@ export class BlueprintBuildable extends BetterObject3D {
   private visualizationTargetPosition: Vector3 | null = null;
   private visualizationTargetRotation: Euler | null = null;
   private visualizationAnchorPosition: Vector3 | null = null;
+  // User-intended rotation per item id (set via keys); do NOT overwrite on auto-fit
+  private desiredRotationByItemId: Map<string, Euler> = new Map();
   visualizeNewPart = (position: Vector3 | null) => {
     if (position == null) {
       if (this.visualizationPart) {
@@ -134,9 +136,15 @@ export class BlueprintBuildable extends BetterObject3D {
     if (this.visualizationPartId === partInfo.id && this.visualizationPart) {
       // Update anchor and recompute rotation/offset to ensure the part fits
       this.visualizationAnchorPosition = position.clone();
-      const preferred = this.visualizationTargetRotation ?? this.visualizationPart.rotation.clone();
-      const best = this.findFittingRotation(this.visualizationPart, position, preferred);
-      if (!best) {
+      const preferred = this.desiredRotationByItemId.get(partInfo.id) ?? this.visualizationTargetRotation ?? this.visualizationPart.rotation.clone();
+      // Try exact preferred first
+      let chosen: Euler | null = null;
+      if (this.isRotationValid(this.visualizationPart, position, preferred)) {
+        chosen = preferred.clone();
+      } else {
+        chosen = this.findFittingRotation(this.visualizationPart, position, preferred);
+      }
+      if (!chosen) {
         // No valid placement: hide visualization
         this.removePart(this.visualizationPart);
         this.visualizationPart = null;
@@ -145,20 +153,28 @@ export class BlueprintBuildable extends BetterObject3D {
         this.visualizationTargetRotation = null;
         return;
       }
-      this.visualizationTargetRotation = best.clone();
-      animateRotationTo(this.visualizationPart, best, 100);
-      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, best);
+      this.visualizationTargetRotation = chosen.clone();
+      animateRotationTo(this.visualizationPart, chosen, 100);
+      const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, chosen);
       this.visualizationTargetPosition = position.clone().sub(rotatedOffset);
       animatePositionTo(this.visualizationPart, this.visualizationTargetPosition, 100);
       return;
     }
-    const part = { part: partInfo.constructor, position, rotation: new Euler(0, 0, 0) };
+    // Use user-desired rotation for this item if available
+    const initialRotation = this.desiredRotationByItemId.get(partInfo.id) ?? new Euler(0, 0, 0);
+    const part = { part: partInfo.constructor, position, rotation: initialRotation };
     this.visualizationPart = this.createAndAddPart(part, false);
     // Initialize anchor lock and place the part so the anchor cell is correct for current rotation
     this.visualizationAnchorPosition = position.clone();
     const preferred = this.visualizationPart.rotation.clone();
-    const best = this.findFittingRotation(this.visualizationPart, position, preferred);
-    if (!best) {
+    // Try desired first, then best-fit
+    let chosen: Euler | null = null;
+    if (this.isRotationValid(this.visualizationPart, position, preferred)) {
+      chosen = preferred.clone();
+    } else {
+      chosen = this.findFittingRotation(this.visualizationPart, position, preferred);
+    }
+    if (!chosen) {
       // No valid placement: do not show visualization
       this.removePart(this.visualizationPart);
       this.visualizationPart = null;
@@ -168,12 +184,12 @@ export class BlueprintBuildable extends BetterObject3D {
       this.visualizationAnchorPosition = null;
       return;
     }
-    const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, best);
+    const rotatedOffset = getOffsetForBiggerObjects(this.visualizationPart, chosen);
     this.visualizationPart.position.copy(position.clone().sub(rotatedOffset));
     this.visualizationPartId = partInfo.id;
     this.visualizationTargetPosition = this.visualizationPart.position.clone();
-    this.visualizationTargetRotation = best.clone();
-    animateRotationTo(this.visualizationPart, best, 0);
+    this.visualizationTargetRotation = chosen.clone();
+    animateRotationTo(this.visualizationPart, chosen, 0);
   };
 
   debouncedVisualizeNewPart = debounceOnlyLastCall(this.visualizeNewPart, 0);
@@ -220,11 +236,17 @@ export class BlueprintBuildable extends BetterObject3D {
       return;
     }
 
-    // Build world-space delta quaternion and apply before current rotation (world-relative)
-    const currentQuat = new Quaternion().setFromEuler(this.visualizationPart.rotation);
+    // Build world-space delta quaternion and apply before the LAST TARGET (not current in-flight)
+    const partInfo = this.gameStore.get("building.selectedItem");
+    const baseEuler =
+      this.visualizationTargetRotation ?? (partInfo ? this.desiredRotationByItemId.get(partInfo.id) : null) ?? this.visualizationPart.rotation.clone();
+    const baseQuat = new Quaternion().setFromEuler(baseEuler);
     const deltaQuat = new Quaternion().setFromAxisAngle(axis!, dir * step);
-    const desiredQuat = new Quaternion(deltaQuat).multiply(currentQuat);
-    const desired = new Euler().setFromQuaternion(desiredQuat);
+    const desiredQuat = new Quaternion(deltaQuat).multiply(baseQuat);
+    // Quantize to exact 90° increments to avoid drift
+    const rawDesired = new Euler().setFromQuaternion(desiredQuat);
+    const snap = (angle: number) => Math.round(angle / step) * step;
+    const desired = new Euler(snap(rawDesired.x), snap(rawDesired.y), snap(rawDesired.z));
     const anchor = this.visualizationAnchorPosition ?? this.visualizationPart.position.clone();
 
     // Prefer exact desired 90° step if valid to ensure expected spin direction
@@ -237,6 +259,7 @@ export class BlueprintBuildable extends BetterObject3D {
         this.visualizationTargetPosition = targetPos;
         animatePositionTo(this.visualizationPart, targetPos, 100);
       }
+      if (partInfo) this.desiredRotationByItemId.set(partInfo.id, desired.clone());
       return;
     }
 
@@ -551,6 +574,8 @@ class PlacementOutline extends BetterObject3D {
   constructor(public part: BetterObject3D, worldOffset: Vector3, scaleXYZ: Vector3) {
     super();
     this.position.copy(new Vector3(part.position).add(worldOffset));
+    // Match the part's rotation so the outline aligns with oriented parts
+    this.setRotationFromEuler(part.rotation);
     const geometry = new LineSegmentsGeometry().setPositions(cubePoints.flat().flatMap((point) => [point.x, point.y, point.z]));
     const material = new LineMaterial({ color: 0xffffff, linewidth: 2 });
     this.lines = new LineSegments2(geometry, material);
