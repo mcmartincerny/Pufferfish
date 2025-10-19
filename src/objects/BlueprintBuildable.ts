@@ -398,6 +398,137 @@ export class BlueprintBuildable extends BetterObject3D {
     return true;
   }
 
+  // --- Connectivity Validation Helpers ---
+  private getAttachPointsForPart(part: BetterObject3D): { localCell: Vector3; faces: ("+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z")[] }[] {
+    const ctor: any = part.constructor;
+    const info = ctor.getPartInfo?.();
+    const points = info?.attachPoints as { cell: [number, number, number]; faces: ("+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z")[] }[] | undefined;
+    if (!points) return [];
+    return points.map((p) => ({ localCell: new Vector3(p.cell[0], p.cell[1], p.cell[2]), faces: p.faces }));
+  }
+
+  private faceToVector(face: "+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z"): Vector3 {
+    switch (face) {
+      case "+X":
+        return new Vector3(1, 0, 0);
+      case "-X":
+        return new Vector3(-1, 0, 0);
+      case "+Y":
+        return new Vector3(0, 1, 0);
+      case "-Y":
+        return new Vector3(0, -1, 0);
+      case "+Z":
+        return new Vector3(0, 0, 1);
+      case "-Z":
+      default:
+        return new Vector3(0, 0, -1);
+    }
+  }
+
+  // oppositeFace no longer needed; kept logic inline to rotate world step into neighbor local
+
+  private quantizeVecToAxis(vec: Vector3): "+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z" {
+    // Pick the dominant axis; tie-breaks are fine
+    const ax = Math.abs(vec.x);
+    const ay = Math.abs(vec.y);
+    const az = Math.abs(vec.z);
+    if (ax >= ay && ax >= az) return vec.x >= 0 ? "+X" : "-X";
+    if (ay >= ax && ay >= az) return vec.y >= 0 ? "+Y" : "-Y";
+    return vec.z >= 0 ? "+Z" : "-Z";
+  }
+
+  private buildCellToPartIndex(): Map<string, number> {
+    const map = new Map<string, number>();
+    this.parts.forEach((part, idx) => {
+      const size = this.getIntegerSizeForInstance(part);
+      const localOffsets = this.getLocalCellOffsets(size);
+      const quat = new Quaternion().setFromEuler(part.rotation);
+      for (const local of localOffsets) {
+        const world = new Vector3(part.position).add(new Vector3(local).applyQuaternion(quat));
+        map.set(`${Math.round(world.x)}|${Math.round(world.y)}|${Math.round(world.z)}`, idx);
+      }
+    });
+    return map;
+  }
+
+  private getDisconnectedParts(): BetterObject3D[] {
+    if (this.parts.length === 0) return [];
+    const cellToPart = this.buildCellToPartIndex();
+
+    // Build adjacency between parts using attach points/faces
+    const adjacency: number[][] = Array.from({ length: this.parts.length }, () => []);
+
+    this.parts.forEach((part, idx) => {
+      const quat = new Quaternion().setFromEuler(part.rotation);
+      const attachPoints = this.getAttachPointsForPart(part);
+      for (const ap of attachPoints) {
+        for (const face of ap.faces) {
+          // World cell of this connector
+          const worldCell = new Vector3(part.position).add(new Vector3(ap.localCell).applyQuaternion(quat));
+          // World direction for this face (quantized to axis)
+          const dirWorldRaw = new Vector3(this.faceToVector(face)).applyQuaternion(quat);
+          const worldFace = this.quantizeVecToAxis(dirWorldRaw);
+          const neighborStep = this.faceToVector(worldFace); // unit axis in world
+          const neighborCell = new Vector3(worldCell).add(neighborStep);
+          const cellKey = `${Math.round(neighborCell.x)}|${Math.round(neighborCell.y)}|${Math.round(neighborCell.z)}`;
+          const neighborIdx = cellToPart.get(cellKey);
+          if (neighborIdx == null || neighborIdx === idx) continue;
+
+          // Check neighbor has opposite face attachable at its corresponding local cell
+          const neighbor = this.parts[neighborIdx];
+          const neighQuat = new Quaternion().setFromEuler(neighbor.rotation);
+          // Map neighborCell center into neighbor's local grid space
+          const neighborLocalCell = new Vector3(neighborCell).sub(neighbor.position).applyQuaternion(neighQuat.clone().invert());
+          const neighborAttachPoints = this.getAttachPointsForPart(neighbor);
+          // Required neighbor face in neighbor-local space is the opposite of world step, rotated into neighbor local
+          const neededLocalFace = this.quantizeVecToAxis(new Vector3(neighborStep).multiplyScalar(-1).applyQuaternion(neighQuat.clone().invert()));
+
+          let matches = false;
+          // Use half-grid quantization for matching (-0.5, 0, 0.5, ...)
+          const q05 = (n: number) => Math.round(n * 2) / 2;
+          const key05 = (v: Vector3) => `${q05(v.x)}|${q05(v.y)}|${q05(v.z)}`;
+          const wantKey = key05(neighborLocalCell);
+          for (const nap of neighborAttachPoints) {
+            if (key05(nap.localCell) !== wantKey) continue;
+            if (nap.faces.includes(neededLocalFace)) {
+              matches = true;
+              break;
+            }
+          }
+          if (matches) {
+            adjacency[idx].push(neighborIdx);
+            adjacency[neighborIdx].push(idx);
+          }
+        }
+      }
+    });
+
+    // Pick root: helm if present, else 0
+    let rootIdx = 0;
+    const helmIdx = this.parts.findIndex((p) => p instanceof Helm);
+    if (helmIdx >= 0) rootIdx = helmIdx;
+
+    // BFS to find connected set
+    const visited = new Array(this.parts.length).fill(false);
+    const queue: number[] = [rootIdx];
+    visited[rootIdx] = true;
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const nb of adjacency[cur]) {
+        if (!visited[nb]) {
+          visited[nb] = true;
+          queue.push(nb);
+        }
+      }
+    }
+
+    const disconnected: BetterObject3D[] = [];
+    this.parts.forEach((part, idx) => {
+      if (!visited[idx]) disconnected.push(part);
+    });
+    return disconnected;
+  }
+
   afterUpdate() {
     super.afterUpdate();
     if (!this.isShipBlueprint || this.moved) return;
@@ -455,6 +586,15 @@ export class BlueprintBuildable extends BetterObject3D {
           errorParts: helmParts,
         });
       }
+    }
+    // Connectivity validation using attachPoints
+    const disconnected = this.getDisconnectedParts();
+    if (disconnected.length > 0) {
+      errors.push({
+        message: "All parts must be connected",
+        details: `There are ${disconnected.length} disconnected parts. Ensure parts are connected via valid attachment faces.`,
+        errorParts: disconnected,
+      });
     }
     this.gameStore.set("building.errors", errors);
     return errors;
